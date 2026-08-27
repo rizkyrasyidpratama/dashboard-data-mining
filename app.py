@@ -7,7 +7,7 @@ import os
 
 # Memastikan path logo relatif terhadap lokasi file app.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH = os.path.join(BASE_DIR, "logo.jpeg")
+LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
 HAS_LOGO = os.path.exists(LOGO_PATH)
 
 st.set_page_config(
