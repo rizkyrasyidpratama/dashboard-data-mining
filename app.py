@@ -3,9 +3,16 @@ import pandas as pd
 import plotly.express as px
 
 # Konfigurasi Halaman
+import os
+
+# Memastikan path logo relatif terhadap lokasi file app.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(BASE_DIR, "logo.jpeg")
+HAS_LOGO = os.path.exists(LOGO_PATH)
+
 st.set_page_config(
     page_title="Dashboard Putus Sekolah",
-    page_icon="🎓",
+    page_icon=LOGO_PATH if HAS_LOGO else "🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -13,31 +20,57 @@ st.set_page_config(
 # Custom CSS untuk tampilan premium
 st.markdown("""
     <style>
+    /* Global Styling */
     .main {
-        background-color: #f8f9fa;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        font-family: 'Inter', sans-serif;
     }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #1e293b !important;
+        font-weight: 800 !important;
+    }
+    
+    /* Metric Cards dengan efek Glassmorphism & Hover */
     .metric-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        padding: 25px;
+        border-radius: 16px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         text-align: center;
         margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    
+    /* Typography di dalam Metric Card */
     .metric-title {
-        color: #6c757d;
+        color: #64748b;
         font-size: 14px;
         text-transform: uppercase;
-        font-weight: bold;
+        font-weight: 700;
+        letter-spacing: 1px;
     }
     .metric-value {
-        color: #2c3e50;
-        font-size: 32px;
-        font-weight: bold;
-        margin-top: 10px;
+        color: #0f172a;
+        font-size: 38px;
+        font-weight: 900;
+        margin-top: 12px;
+        background: -webkit-linear-gradient(45deg, #2563eb, #3b82f6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
-    h1, h2, h3 {
-        color: #2c3e50;
+    
+    /* Penyesuaian Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e2e8f0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -58,9 +91,22 @@ df = load_data()
 if df.empty:
     st.stop()
 
-# Judul Dashboard
-st.title("🎓 Dashboard Analisis Putus Sekolah")
-st.markdown("Visualisasi dan eksplorasi data peserta didik putus sekolah tingkat SD/MI Sederajat berdasarkan dataset yang ada.")
+# Tampilkan Logo di Sidebar
+if HAS_LOGO:
+    st.sidebar.image(LOGO_PATH, use_container_width=True)
+    st.sidebar.markdown("---")
+
+# Judul Dashboard Utama
+col_logo, col_title = st.columns([1, 11])
+with col_logo:
+    if HAS_LOGO:
+        st.image(LOGO_PATH, width=70)
+    else:
+        st.markdown("<h1>🎓</h1>", unsafe_allow_html=True)
+
+with col_title:
+    st.title("Dashboard Analisis Putus Sekolah")
+st.markdown("<p style='font-size: 18px; color: #475569;'>Visualisasi dan eksplorasi data peserta didik putus sekolah tingkat SD/MI Sederajat berdasarkan dataset yang ada.</p>", unsafe_allow_html=True)
 
 # Sidebar Filters
 st.sidebar.header("🔍 Filter Data")
