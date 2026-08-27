@@ -254,8 +254,18 @@ def load_and_prep_data():
             
     df_rf['Target'] = df_rf['Jumlah'].apply(assign_target)
 
-    fitur_rf = ['Jumlah_Lag1', 'Proporsi_I_Lag1', 'Proporsi_II_Lag1', 'Proporsi_III_Lag1', 
-                'Proporsi_IV_Lag1', 'Proporsi_V_Lag1', 'Proporsi_VI_Lag1', 'Status_Encoded', 'Periode']
+    # Urutan fitur manual sesuai dengan gambar (Periode di atas, Jumlah_Lag1 di bawah)
+    fitur_rf = [
+        'Periode',
+        'Proporsi_II_Lag1',
+        'Proporsi_III_Lag1',
+        'Proporsi_I_Lag1',
+        'Proporsi_IV_Lag1',
+        'Proporsi_V_Lag1',
+        'Status_Encoded',
+        'Proporsi_VI_Lag1',
+        'Jumlah_Lag1'
+    ]
 
     X_train = df_rf.loc[train_mask, fitur_rf]
     y_train = df_rf.loc[train_mask, 'Target']
@@ -278,7 +288,7 @@ def load_and_prep_data():
         "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
         "baseline_acc": y_train.value_counts(normalize=True).max(),
         "cm": confusion_matrix(y_test, y_pred, labels=["Rendah", "Sedang", "Tinggi"]),
-        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=True),
+        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf),
         "y_test_count": len(y_test),
         "y_train_count": len(y_train)
     }
@@ -666,11 +676,20 @@ elif menu == "🔮 Predictive Simulation":
         
         status_encoded = le_status_obj.transform([status_input])[0]
         
-        fitur_rf = ['Jumlah_Lag1', 'Proporsi_I_Lag1', 'Proporsi_II_Lag1', 'Proporsi_III_Lag1', 
-                    'Proporsi_IV_Lag1', 'Proporsi_V_Lag1', 'Proporsi_VI_Lag1', 'Status_Encoded', 'Periode']
+        fitur_rf = [
+            'Periode',
+            'Proporsi_II_Lag1',
+            'Proporsi_III_Lag1',
+            'Proporsi_I_Lag1',
+            'Proporsi_IV_Lag1',
+            'Proporsi_V_Lag1',
+            'Status_Encoded',
+            'Proporsi_VI_Lag1',
+            'Jumlah_Lag1'
+        ]
                     
         input_data = pd.DataFrame([[
-            val_jumlah_lag1, p_i, p_ii, p_iii, p_iv, p_v, p_vi, status_encoded, periode_target
+            periode_target, p_ii, p_iii, p_i, p_iv, p_v, status_encoded, p_vi, val_jumlah_lag1
         ]], columns=fitur_rf)
         
         pred_label = rf_model_obj.predict(input_data)[0]
