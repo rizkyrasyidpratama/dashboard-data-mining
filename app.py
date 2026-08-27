@@ -600,7 +600,7 @@ elif menu == "🌲 Random Forest Model":
         st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
 
     with col_rf2:
-        st.subheader("Feature Importance")
+        st.subheader("Feature Importance Overview")
         fi_df = m["feature_importances"].reset_index()
         fi_df.columns = ["Fitur", "Importance"]
         
@@ -612,6 +612,52 @@ elif menu == "🌲 Random Forest Model":
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # Feature Importance side-by-side layout matching the requested layout order/charts
+    col_fi1, col_fi2 = st.columns(2, gap="large")
+    
+    with col_fi1:
+        st.subheader("Feature Importance Random Forest")
+        fi_full = m["feature_importances"].reset_index()
+        fi_full.columns = ["Fitur", "Importance"]
+        
+        fig_fi_full = px.bar(
+            fi_full, x="Importance", y="Fitur", orientation="h",
+            text_auto=".4f", color="Importance",
+            color_continuous_scale="Viridis"
+        )
+        fig_fi_full.update_layout(
+            height=400, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Nilai Importance", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Fitur", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            coloraxis_showscale=False,
+            margin=dict(l=10, r=10, t=10, b=10)
+        )
+        st.plotly_chart(fig_fi_full, use_container_width=True, config=NO_ZOOM)
+
+    with col_fi2:
+        st.subheader("Top 5 Feature Importance")
+        fi_top5 = m["feature_importances"].reset_index()
+        fi_top5.columns = ["Fitur", "Importance"]
+        fi_top5 = fi_top5.sort_values("Importance", ascending=False).head(5)
+        
+        fig_fi_top5 = px.bar(
+            fi_top5, x="Fitur", y="Importance",
+            text_auto=".4f", color="Fitur",
+            color_discrete_sequence=["#6a1b9a", "#8e24aa", "#d81b60", "#f4511e", "#ffa726"]
+        )
+        fig_fi_top5.update_layout(
+            height=400, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Fitur", tickangle=-30, fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Nilai Importance", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10)
+        )
+        st.plotly_chart(fig_fi_top5, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
 # HALAMAN 5: PREDICTIVE SIMULATION
