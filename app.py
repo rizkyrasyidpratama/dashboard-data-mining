@@ -26,7 +26,7 @@ from sklearn.preprocessing import StandardScaler
 # 1. KONFIGURASI HALAMAN & THEME STYLING GLOBAL
 # =========================================================
 st.set_page_config(
-    page_title="Data Mining Project - Putus Sekolah",
+    page_title="Analytics System - Putus Sekolah",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -60,7 +60,7 @@ st.markdown(
     }
     div[data-baseweb="select"] *, div[data-baseweb="input"] * { color: #ffffff !important; }
 
-    /* CUSTOM SIDEBAR NAVIGATION (Hapus Radio Button Default AI Look) */
+    /* CUSTOM SIDEBAR NAVIGATION */
     [data-testid="stSidebar"] div[role="radiogroup"] {
         gap: 8px !important;
     }
@@ -210,13 +210,13 @@ with st.sidebar:
         """
         <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid #334155; margin-bottom: 1.2rem;">
             <div style="font-size: 0.65rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem;">
-                FINAL PROJECT DATA MINING
+                DATA MINING SYSTEM
             </div>
             <div style="font-size: 1.05rem; font-weight: 800; color: #ffffff; line-height: 1.3;">
                 Analisis Putus Sekolah SD/MI
             </div>
             <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
-                Clustering & Predictive Modeling
+                Clustering & Predictive Suite
             </div>
         </div>
         """,
@@ -251,8 +251,8 @@ with st.sidebar:
     st.markdown(
         """
         <div style="background: rgba(15, 23, 42, 0.6); padding: 0.9rem; border-radius: 8px; border: 1px dashed #334155;">
-            <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">STATUS APPS</div>
-            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Ready for Presentation</div>
+            <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">SYSTEM STATUS</div>
+            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Fully Operational</div>
             <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.3rem;">Engine: Scikit-Learn v1.2+</div>
         </div>
         """,
@@ -527,7 +527,7 @@ elif menu == "🌲 Random Forest":
 # HALAMAN 5: 🔮 PREDICTION
 # =========================================================
 elif menu == "🔮 Prediction":
-    st.title("🔮 Demo Prediksi Interaktif")
+    st.title("🔮 Predictive Simulation")
     st.markdown("Simulasi prediksi kategori tingkat kerawanan wilayah menggunakan model Random Forest yang telah dilatih.")
     
     st.write("")
