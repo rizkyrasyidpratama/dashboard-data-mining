@@ -155,7 +155,7 @@ def get_image_base64(path):
 @st.cache_data
 def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
-        return None, None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None
     
     df = pd.read_csv(DATA_PATH)
     df.columns = [c.strip() for c in df.columns]
@@ -219,13 +219,11 @@ def load_and_prep_data():
             0
         )
 
-    # KUNCI UTAMA: Urutkan label encoder secara konsisten
     le_status = LabelEncoder()
     unique_status = np.sort(df_agregat['Status Sekolah'].astype(str).unique())
     le_status.fit(unique_status)
     df_agregat['Status_Encoded'] = le_status.transform(df_agregat['Status Sekolah'])
 
-    # KUNCI UTAMA: Urutan baris presisi sebelum shift
     df_agregat = df_agregat.sort_values(['Kode Kota/Kab', 'Status Sekolah', 'Periode']).reset_index(drop=True)
     group_cols = ['Kode Kota/Kab', 'Status Sekolah']
 
@@ -264,7 +262,6 @@ def load_and_prep_data():
     X_test = df_rf.loc[test_mask, fitur_rf]
     y_test = df_rf.loc[test_mask, 'Target']
 
-    # KUNCI UTAMA: Parameter Random Forest Criterion Gini
     rf_model = RandomForestClassifier(
         n_estimators=100, 
         criterion='gini',
@@ -286,9 +283,9 @@ def load_and_prep_data():
         "y_train_count": len(y_train)
     }
 
-    return df, kmeans_data, scaler_kmeans, kmeans_model, rf_model, rf_metrics, le_status, df_rf
+    return df, kmeans_data, scaler_kmeans, kmeans_model, rf_model, rf_metrics, le_status
 
-df_raw, df_kmeans, scaler_kmeans_obj, kmeans_obj, rf_model_obj, rf_results, le_status_obj, df_rf_debug = load_and_prep_data()
+df_raw, df_kmeans, scaler_kmeans_obj, kmeans_obj, rf_model_obj, rf_results, le_status_obj = load_and_prep_data()
 
 if df_raw is None:
     st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia di folder utama.")
@@ -332,8 +329,7 @@ with st.sidebar:
             "📊 Exploratory Analysis",
             "🧩 K-Means Clustering",
             "🌲 Random Forest Model",
-            "🔮 Predictive Simulation",
-            "🔍 Debug & Colab Alignment"
+            "🔮 Predictive Simulation"
         ],
         label_visibility="collapsed"
     )
@@ -686,28 +682,3 @@ elif menu == "🔮 Predictive Simulation":
             """,
             unsafe_allow_html=True
         )
-
-# =========================================================
-# HALAMAN 6: DEBUG & COLAB ALIGNMENT
-# =========================================================
-elif menu == "🔍 Debug & Colab Alignment":
-    st.title("Pemeriksaan Presisi & Alignment Colab")
-    st.warning("Panel ini menampilkan struktur persis yang diproses oleh Streamlit untuk memverifikasi perbedaannya dengan Colab.")
-    
-    st.subheader("1. Jumlah Data Per Baris")
-    st.write(f"- Total Raw Dataset: `{len(df_raw)}` baris")
-    st.write(f"- Total Kab/Kota K-Means: `{len(df_kmeans)}` baris")
-    st.write(f"- Total Samples Random Forest: `{len(df_rf_debug)}` baris")
-    st.write(f"- Train Samples: `{rf_results['y_train_count']}` baris | Test Samples (2024): `{rf_results['y_test_count']}` baris")
-    
-    st.subheader("2. Sampel Data K-Means (5 Baris Pertama)")
-    st.dataframe(df_kmeans.head(), use_container_width=True)
-    
-    st.subheader("3. Matrix Hasil Random Forest")
-    st.json({
-        "Accuracy": rf_results['acc'],
-        "Precision": rf_results['prec'],
-        "Recall": rf_results['rec'],
-        "F1-Score": rf_results['f1'],
-        "Confusion Matrix": rf_results['cm'].tolist()
-    })
