@@ -254,7 +254,6 @@ def load_and_prep_data():
             
     df_rf['Target'] = df_rf['Jumlah'].apply(assign_target)
 
-    # Urutan fitur manual sesuai dengan gambar (Periode di atas, Jumlah_Lag1 di bawah)
     fitur_rf = [
         'Periode',
         'Proporsi_II_Lag1',
@@ -626,7 +625,8 @@ elif menu == "🌲 Random Forest Model":
                 title="Fitur", 
                 fixedrange=True,
                 categoryorder="array",
-                categoryarray=fi_df["Fitur"].tolist()
+                categoryarray=fi_df["Fitur"].tolist(),
+                autorange="reversed"
             ),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             coloraxis_showscale=False
