@@ -259,7 +259,11 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-NO_ZOOM = {'displayModeBar': False}
+# Konfigurasi Pengunci Zoom & Sembunyikan Toolbar Plotly
+NO_ZOOM = {
+    'displayModeBar': False,
+    'scrollZoom': False
+}
 
 # =========================================================
 # HALAMAN 1: 🏠 DASHBOARD
@@ -299,7 +303,8 @@ if menu == "🏠 Dashboard":
             fig_trend.update_traces(line_color="#38bdf8", line_width=3, marker_size=8)
             fig_trend.update_layout(
                 height=380, font=dict(color="#f8fafc"),
-                xaxis=dict(gridcolor="#334155", dtick=1), yaxis=dict(gridcolor="#334155", title="Jumlah Siswa"),
+                xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", title="Jumlah Siswa", fixedrange=True),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 margin=dict(l=10, r=10, t=10, b=10)
             )
@@ -312,8 +317,8 @@ if menu == "🏠 Dashboard":
         fig_top.update_traces(marker_color="#38bdf8")
         fig_top.update_layout(
             height=380, font=dict(color="#f8fafc"),
-            yaxis=dict(autorange="reversed", gridcolor="#334155", title=None),
-            xaxis=dict(gridcolor="#334155", title="Total Siswa"),
+            yaxis=dict(autorange="reversed", gridcolor="#334155", title=None, fixedrange=True),
+            xaxis=dict(gridcolor="#334155", title="Total Siswa", fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=10, r=10, t=10, b=10)
         )
@@ -353,7 +358,8 @@ elif menu == "📊 Exploratory Analysis":
         fig_class = px.bar(class_sums, x="Tingkat Kelas", y="Jumlah Siswa", text_auto=",d", color_discrete_sequence=["#38bdf8"])
         fig_class.update_layout(
             height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
         )
         st.plotly_chart(fig_class, use_container_width=True, config=NO_ZOOM)
@@ -378,6 +384,7 @@ elif menu == "📊 Exploratory Analysis":
     )
     fig_corr.update_layout(
         height=400, font=dict(color="#f8fafc"),
+        xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
     )
     st.plotly_chart(fig_corr, use_container_width=True, config=NO_ZOOM)
@@ -425,7 +432,8 @@ elif menu == "🧩 K-Means Clustering":
             fig_elbow.add_vline(x=3, line_dash="dash", line_color="#ef4444", annotation_text="K Optimal = 3")
             fig_elbow.update_layout(
                 height=350, font=dict(color="#f8fafc"),
-                xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+                xaxis=dict(gridcolor="#334155", fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
             st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
@@ -460,7 +468,8 @@ elif menu == "🧩 K-Means Clustering":
         fig_pca.update_traces(marker=dict(size=9, opacity=0.8))
         fig_pca.update_layout(
             height=420, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
@@ -504,6 +513,7 @@ elif menu == "🌲 Random Forest":
         )
         fig_cm.update_layout(
             height=360, font=dict(color="#f8fafc"),
+            xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
@@ -517,7 +527,8 @@ elif menu == "🌲 Random Forest":
         fig_fi = px.bar(fi_df, x="Importance", y="Fitur", orientation="h", text_auto=".3f", color_discrete_sequence=["#38bdf8"])
         fig_fi.update_layout(
             height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155", title=None),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title=None, fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
