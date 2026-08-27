@@ -23,10 +23,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 # =========================================================
-# 1. KONFIGURASI HALAMAN & THEME STYLING
+# 1. KONFIGURASI HALAMAN & THEME STYLING GLOBAL
 # =========================================================
 st.set_page_config(
-    page_title="Data Mining Project Demo - Putus Sekolah",
+    page_title="Data Mining Project - Putus Sekolah",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -46,13 +46,11 @@ st.markdown(
     [data-testid="stHeader"] { background-color: #0f172a !important; }
     [data-testid="stSidebar"] { background-color: #1e293b !important; border-right: 1px solid #334155 !important; }
 
-    /* Text Colors */
+    /* Typography Colors */
     [data-testid="stAppViewContainer"] h1, [data-testid="stAppViewContainer"] h2, 
     [data-testid="stAppViewContainer"] h3, [data-testid="stAppViewContainer"] h4, 
     [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] span, 
     [data-testid="stAppViewContainer"] label { color: #f8fafc !important; }
-
-    [data-testid="stSidebar"] * { color: #f8fafc !important; }
 
     /* Selectbox & Input Customization */
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
@@ -61,6 +59,50 @@ st.markdown(
         color: #ffffff !important;
     }
     div[data-baseweb="select"] *, div[data-baseweb="input"] * { color: #ffffff !important; }
+
+    /* CUSTOM SIDEBAR NAVIGATION (Hapus Radio Button Default AI Look) */
+    [data-testid="stSidebar"] div[role="radiogroup"] {
+        gap: 8px !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label {
+        background-color: #0f172a !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        padding: 10px 14px !important;
+        margin: 0 !important;
+        width: 100% !important;
+        transition: all 0.2s ease-in-out !important;
+        cursor: pointer !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+        border-color: #38bdf8 !important;
+        background-color: #1e293b !important;
+        transform: translateX(4px);
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] {
+        background-color: rgba(56, 189, 248, 0.12) !important;
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.15) !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child {
+        display: none !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label p {
+        font-size: 0.88rem !important;
+        font-weight: 600 !important;
+        color: #cbd5e1 !important;
+        margin: 0 !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] > label[data-checked="true"] p {
+        color: #38bdf8 !important;
+        font-weight: 700 !important;
+    }
 
     /* Metric Cards Styling */
     .metric-box {
@@ -75,7 +117,7 @@ st.markdown(
     .metric-num { color: #ffffff !important; font-size: 1.8rem; font-weight: 800; margin-top: 0.2rem; }
     .metric-sub { color: #38bdf8 !important; font-size: 0.8rem; font-weight: 600; }
 
-    /* Prediction Result Badge */
+    /* Prediction Result Badges */
     .pred-card-rendah {
         background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e;
         border-radius: 14px; padding: 2rem; text-align: center; color: #4ade80 !important;
@@ -110,12 +152,10 @@ def load_and_prep_data():
     
     df = pd.read_csv(DATA_PATH)
     
-    # Cleaning Numerical Columns
     for col in LEVEL_COLS + ["Jumlah"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
             
-    # Feature columns for Clustering & Modeling
     feature_cols = [c for c in LEVEL_COLS if c in df.columns]
     
     # 1. K-MEANS CLUSTERING (K=3)
@@ -125,7 +165,6 @@ def load_and_prep_data():
     kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
     df["Cluster_Id"] = kmeans.fit_predict(X_scaled)
     
-    # Map Cluster ID to Human Label based on mean Jumlah
     cluster_means = df.groupby("Cluster_Id")["Jumlah"].mean().sort_values()
     label_map = {
         cluster_means.index[0]: "Rendah",
@@ -138,7 +177,6 @@ def load_and_prep_data():
     X = df[feature_cols]
     y = df["Cluster"]
     
-    # Chronological or Stratified Train-Test Split (Testing year simulation)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
@@ -146,7 +184,6 @@ def load_and_prep_data():
     
     y_pred = rf_model.predict(X_test)
     
-    # Metrics
     rf_metrics = {
         "acc": accuracy_score(y_test, y_pred),
         "prec": precision_score(y_test, y_pred, average="weighted"),
@@ -162,29 +199,65 @@ def load_and_prep_data():
 df_data, FEATURE_COLS, scaler_obj, kmeans_obj, rf_model_obj, rf_results = load_and_prep_data()
 
 if df_data is None:
-    st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia.")
+    st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia di folder utama.")
     st.stop()
 
 # =========================================================
-# 3. SIDEBAR NAVIGATION
+# 3. SIDEBAR CUSTOM NAVIGATION
 # =========================================================
 with st.sidebar:
-    st.markdown("### 🎓 Data Mining Project")
-    st.caption("Eksplorasi & Prediksi Putus Sekolah SD/MI")
-    st.markdown("---")
-    
-    menu = st.radio(
-        "Navigasi Halaman:",
-        [
-            "🏠 Dashboard",
-            "📊 Exploratory Analysis",
-            "🧩 K-Means Clustering",
-            "🌲 Random Forest",
-            "🔮 Prediction"
-        ]
+    st.markdown(
+        """
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid #334155; margin-bottom: 1.2rem;">
+            <div style="font-size: 0.65rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem;">
+                FINAL PROJECT DATA MINING
+            </div>
+            <div style="font-size: 1.05rem; font-weight: 800; color: #ffffff; line-height: 1.3;">
+                Analisis Putus Sekolah SD/MI
+            </div>
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
+                Clustering & Predictive Modeling
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-    st.markdown("---")
-    st.caption("Visualisasi Presentasi Dosen • v2.0")
+
+    st.markdown("<p style='font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;'>MAIN MENU</p>", unsafe_allow_html=True)
+
+    selected_menu = st.radio(
+        label="Navigasi Utama",
+        options=[
+            "Overview Dashboard",
+            "Exploratory Analysis",
+            "K-Means Clustering",
+            "Random Forest Model",
+            "Predictive Simulation"
+        ],
+        label_visibility="collapsed"
+    )
+
+    menu_map = {
+        "Overview Dashboard": "🏠 Dashboard",
+        "Exploratory Analysis": "📊 Exploratory Analysis",
+        "K-Means Clustering": "🧩 K-Means Clustering",
+        "Random Forest Model": "🌲 Random Forest",
+        "Predictive Simulation": "🔮 Prediction"
+    }
+    menu = menu_map[selected_menu]
+
+    st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+    
+    st.markdown(
+        """
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 0.9rem; border-radius: 8px; border: 1px dashed #334155;">
+            <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">STATUS APPS</div>
+            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Ready for Presentation</div>
+            <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.3rem;">Engine: Scikit-Learn v1.2+</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 NO_ZOOM = {'displayModeBar': False}
 
@@ -196,7 +269,6 @@ if menu == "🏠 Dashboard":
     st.markdown("Ringkasan data utama tingkat nasional angka putus sekolah peserta didik SD/MI.")
     st.write("")
     
-    # Metric Row
     c1, c2, c3, c4, c5 = st.columns(5)
     total_records = len(df_data)
     total_prov = df_data["Wilayah"].nunique() if "Wilayah" in df_data.columns else 0
@@ -254,7 +326,6 @@ elif menu == "📊 Exploratory Analysis":
     st.title("📊 Exploratory Data Analysis (EDA)")
     st.markdown("Eksplorasi rinci karakteristik data berdasarkan jenjang kelas, status sekolah, dan korelasi antar fitur.")
     
-    # Filter Bar
     c_f1, c_f2 = st.columns(2)
     with c_f1:
         years = ["Semua Tahun"] + sorted(df_data["Periode"].unique().tolist()) if "Periode" in df_data.columns else ["Semua"]
@@ -263,7 +334,6 @@ elif menu == "📊 Exploratory Analysis":
         regions = ["Semua Wilayah"] + sorted(df_data["Wilayah"].unique().tolist()) if "Wilayah" in df_data.columns else ["Semua"]
         sel_region = st.selectbox("Filter Wilayah / Provinsi:", regions)
 
-    # Filter Application
     filtered_eda = df_data.copy()
     if sel_year != "Semua Tahun":
         filtered_eda = filtered_eda[filtered_eda["Periode"] == sel_year]
@@ -275,7 +345,7 @@ elif menu == "📊 Exploratory Analysis":
     col_e1, col_e2 = st.columns(2, gap="large")
 
     with col_e1:
-        st.subheader("🏫 Distribution Putus Sekolah per Kelas (I - VI)")
+        st.subheader("🏫 Distribusi Putus Sekolah per Kelas (I - VI)")
         class_sums = filtered_eda[FEATURE_COLS].sum().reset_index()
         class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
         class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
@@ -322,7 +392,6 @@ elif menu == "🧩 K-Means Clustering":
     scaler_tmp = StandardScaler()
     X_sc = scaler_tmp.fit_transform(df_data[FEATURE_COLS])
     
-    # Compute Evaluation Metrics
     sil = silhouette_score(X_sc, df_data["Cluster_Id"])
     ch = calinski_harabasz_score(X_sc, df_data["Cluster_Id"])
     db = davies_bouldin_score(X_sc, df_data["Cluster_Id"])
