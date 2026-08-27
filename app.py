@@ -153,7 +153,6 @@ def get_image_base64(path):
             return base64.b64encode(image_file.read()).decode("utf-8")
     return None
 
-# Warna dari notebook
 COLORS = {
     'primary': '#2E86AB',
     'secondary': '#A23B72',
@@ -170,7 +169,6 @@ def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
         return None
     
-    # LOAD DATA
     df = pd.read_csv(DATA_PATH)
     df.columns = [c.strip() for c in df.columns]
 
@@ -179,7 +177,7 @@ def load_and_prep_data():
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     # =========================================================
-    # BAGIAN 3: PREPROCESSING LENGKAP (SAMA PERSIS NOTEBOOK)
+    # PREPROCESSING (SAMA PERSIS NOTEBOOK)
     # =========================================================
     
     # 3.1 AGREGASI DATA
@@ -206,7 +204,6 @@ def load_and_prep_data():
     # 3.3 ENCODING STATUS SEKOLAH
     le_status = LabelEncoder()
     df_agregat['Status_Encoded'] = le_status.fit_transform(df_agregat['Status Sekolah'])
-    status_mapping = dict(zip(le_status.classes_, le_status.transform(le_status.classes_)))
     
     # 3.4 PEMBUATAN FITUR LAG
     df_agregat = df_agregat.sort_values(['Kode Kota/Kab', 'Status Sekolah', 'Periode'])
@@ -216,28 +213,17 @@ def load_and_prep_data():
     for romawi in ROMAWI_LIST:
         df_agregat[f'Proporsi_{romawi}_Lag1'] = df_agregat.groupby(group_cols)[f'Proporsi_{romawi}'].shift(1)
     
-    # 3.5 PEMERIKSAAN LAG
     df_agregat['Selisih_Tahun'] = df_agregat['Periode'] - df_agregat.groupby(group_cols)['Periode'].shift(1)
-    
-    # 3.6 FILTER: HANYA DATA DENGAN SELISIH = 1
     df_rf = df_agregat[df_agregat['Selisih_Tahun'] == 1].copy()
     
-    # 3.7 DEFINISI TAHUN TEST DAN TRAIN
     all_years = sorted(df_rf['Periode'].unique())
     tahun_test = all_years[-1] if len(all_years) > 0 else 2024
     tahun_train = all_years[:-1] if len(all_years) > 1 else []
     
-    # 3.8 FITUR RANDOM FOREST (SAMA PERSIS NOTEBOOK)
     fitur_rf = [
-        'Jumlah_Lag1',
-        'Proporsi_I_Lag1',
-        'Proporsi_II_Lag1',
-        'Proporsi_III_Lag1',
-        'Proporsi_IV_Lag1',
-        'Proporsi_V_Lag1',
-        'Proporsi_VI_Lag1',
-        'Status_Encoded',
-        'Periode'
+        'Jumlah_Lag1', 'Proporsi_I_Lag1', 'Proporsi_II_Lag1',
+        'Proporsi_III_Lag1', 'Proporsi_IV_Lag1', 'Proporsi_V_Lag1',
+        'Proporsi_VI_Lag1', 'Status_Encoded', 'Periode'
     ]
     
     # 3.9 PERSIAPAN DATA K-MEANS
@@ -276,23 +262,17 @@ def load_and_prep_data():
     }).reset_index()
     
     fitur_kmeans = [
-        'Proporsi_I',
-        'Proporsi_II',
-        'Proporsi_III',
-        'Proporsi_IV',
-        'Proporsi_V',
-        'Proporsi_VI',
-        'Jumlah'
+        'Proporsi_I', 'Proporsi_II', 'Proporsi_III',
+        'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI', 'Jumlah'
     ]
     
     # =========================================================
-    # BAGIAN 5: K-MEANS CLUSTERING (SAMA PERSIS NOTEBOOK)
+    # K-MEANS CLUSTERING (SAMA PERSIS NOTEBOOK)
     # =========================================================
     
     scaler_kmeans = StandardScaler()
     X_kmeans_scaled = scaler_kmeans.fit_transform(kmeans_data[fitur_kmeans])
     
-    # 5.2 MENENTUKAN JUMLAH CLUSTER OPTIMAL
     K_range = range(2, 11)
     inertia_scores = []
     silhouette_scores = []
@@ -307,7 +287,6 @@ def load_and_prep_data():
         calinski_scores.append(calinski_harabasz_score(X_kmeans_scaled, labels))
         davies_scores.append(davies_bouldin_score(X_kmeans_scaled, labels))
     
-    # VOTING untuk menentukan k optimal
     best_k_sil = K_range[np.argmax(silhouette_scores)]
     best_k_cal = K_range[np.argmax(calinski_scores)]
     best_k_dav = K_range[np.argmin(davies_scores)]
@@ -321,11 +300,9 @@ def load_and_prep_data():
     else:
         optimal_k = best_k_sil
     
-    # 5.3 IMPLEMENTASI K-MEANS
     kmeans_model = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
     kmeans_data['Cluster'] = kmeans_model.fit_predict(X_kmeans_scaled)
     
-    # 5.4 ANALISIS HASIL CLUSTER
     cluster_analysis = kmeans_data.groupby('Cluster').agg({
         'Proporsi_I': 'mean',
         'Proporsi_II': 'mean',
@@ -337,7 +314,6 @@ def load_and_prep_data():
     })
     
     cluster_order = cluster_analysis.sort_values('Jumlah').index.tolist()
-    
     cluster_names = {}
     for i, cluster_id in enumerate(cluster_order):
         if i == 0:
@@ -354,20 +330,19 @@ def load_and_prep_data():
     db_score = davies_bouldin_score(X_kmeans_scaled, kmeans_data['Cluster'])
     
     # =========================================================
-    # BAGIAN 6: RANDOM FOREST + BASELINE (SAMA PERSIS NOTEBOOK)
+    # RANDOM FOREST (SAMA PERSIS NOTEBOOK)
     # =========================================================
     
     def create_labels_for_fold(data, q1, q3):
         def categorize(value):
             if value <= q1:
-                return 0  # Rendah
+                return 0
             elif value <= q3:
-                return 1  # Sedang
+                return 1
             else:
-                return 2  # Tinggi
+                return 2
         return data['Jumlah'].apply(categorize)
     
-    # 6.3 EXPANDING WINDOW VALIDATION
     tahun_validasi = tahun_train[1:] if len(tahun_train) > 1 else []
     
     param_grid = {
@@ -459,7 +434,6 @@ def load_and_prep_data():
     X_train_final = train_final[fitur_rf]
     X_test_final = test_final[fitur_rf]
     
-    # 6.7 BUILD MODEL FINAL
     best_rf = RandomForestClassifier(
         n_estimators=best_params['n_estimators'],
         max_depth=best_params['max_depth'],
@@ -470,13 +444,11 @@ def load_and_prep_data():
     )
     best_rf.fit(X_train_final, y_train_final)
     
-    # 6.8 BASELINE MODEL
     baseline = DummyClassifier(strategy='most_frequent')
     baseline.fit(X_train_final, y_train_final)
     baseline_pred = baseline.predict(X_test_final)
     baseline_accuracy = accuracy_score(y_test_final, baseline_pred)
     
-    # 6.9 PREDIKSI DAN EVALUASI
     y_pred_final = best_rf.predict(X_test_final)
     
     accuracy_final = accuracy_score(y_test_final, y_pred_final)
@@ -488,16 +460,13 @@ def load_and_prep_data():
     macro_recall = recall_score(y_test_final, y_pred_final, average='macro', zero_division=0)
     macro_f1 = f1_score(y_test_final, y_pred_final, average='macro', zero_division=0)
     
-    # 6.10 CONFUSION MATRIX
     cm_final = confusion_matrix(y_test_final, y_pred_final, labels=[0, 1, 2])
     
-    # 6.11 FEATURE IMPORTANCE
     feature_importance = pd.DataFrame({
         'Fitur': fitur_rf,
         'Importance': best_rf.feature_importances_
     }).sort_values('Importance', ascending=False)
     
-    # 6.17 TABEL METRIK PER KELAS
     per_class_metrics = []
     class_names = ['Rendah', 'Sedang', 'Tinggi']
     for i, class_name in enumerate(class_names):
@@ -518,30 +487,18 @@ def load_and_prep_data():
     per_class_df = pd.DataFrame(per_class_metrics)
     
     # =========================================================
-    # BAGIAN 4: ANALISIS EKSPLORATIF DATA (EDA)
+    # EDA (SAMA PERSIS NOTEBOOK UNTUK ANGKA)
     # =========================================================
-    
-    # 4.1 DISTRIBUSI PER TINGKAT
     tingkat_stats = df[LEVEL_COLS].agg(['mean', 'median', 'std', 'min', 'max', 'sum'])
     tingkat_stats.index = ['Rata-rata', 'Median', 'Std Dev', 'Min', 'Max', 'Total']
     
-    # 4.2 ANALISIS PER PROVINSI
     total_per_provinsi = df.groupby('Wilayah')['Jumlah'].sum().sort_values(ascending=False)
-    
-    # 4.3 TREN PER TAHUN
     total_per_tahun = df.groupby('Periode')['Jumlah'].sum()
     
-    # 4.4 STATUS SEKOLAH VS PUTUS SEKOLAH
     status_analysis = df.groupby('Status Sekolah')['Jumlah'].agg(['sum', 'mean', 'median', 'std', 'count'])
     status_analysis.columns = ['Total', 'Rata-rata', 'Median', 'Std Dev', 'Jumlah Data']
     
-    # 4.5 HEATMAP KORELASI
     corr_matrix = df[LEVEL_COLS + ['Jumlah']].corr()
-    
-    # 4.6 STATISTIK PER PROVINSI
-    provinsi_stats = df.groupby('Wilayah')['Jumlah'].agg(['sum', 'mean', 'std', 'count'])
-    provinsi_stats.columns = ['Total', 'Rata-rata', 'Std Dev', 'Jumlah Data']
-    provinsi_stats = provinsi_stats.sort_values('Total', ascending=False)
     
     return {
         'df': df,
@@ -551,12 +508,10 @@ def load_and_prep_data():
         'kmeans_model': kmeans_model,
         'rf_model': best_rf,
         'le_status': le_status,
-        'status_mapping': status_mapping,
         'fitur_rf': fitur_rf,
         'fitur_kmeans': fitur_kmeans,
         'tahun_test': tahun_test,
         'tahun_train': tahun_train,
-        'tahun_validasi': tahun_validasi,
         'Q1_final': Q1_final,
         'Q3_final': Q3_final,
         'y_test_final': y_test_final,
@@ -583,9 +538,6 @@ def load_and_prep_data():
         'silhouette_scores': silhouette_scores,
         'calinski_scores': calinski_scores,
         'davies_scores': davies_scores,
-        'best_k_sil': best_k_sil,
-        'best_k_cal': best_k_cal,
-        'best_k_dav': best_k_dav,
         'fold_accuracies': fold_accuracies,
         'mean_acc': mean_acc,
         'std_acc': std_acc,
@@ -595,14 +547,13 @@ def load_and_prep_data():
         'total_per_tahun': total_per_tahun,
         'status_analysis': status_analysis,
         'corr_matrix': corr_matrix,
-        'provinsi_stats': provinsi_stats,
         'best_params': best_params,
     }
 
 results = load_and_prep_data()
 
 if results is None:
-    st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia di folder utama.")
+    st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`")
     st.stop()
 
 # Extract data
@@ -613,16 +564,11 @@ scaler_kmeans = results['scaler_kmeans']
 kmeans_model = results['kmeans_model']
 rf_model = results['rf_model']
 le_status = results['le_status']
-status_mapping = results['status_mapping']
 fitur_rf = results['fitur_rf']
 fitur_kmeans = results['fitur_kmeans']
 tahun_test = results['tahun_test']
-tahun_train = results['tahun_train']
-tahun_validasi = results['tahun_validasi']
 Q1_final = results['Q1_final']
 Q3_final = results['Q3_final']
-y_test_final = results['y_test_final']
-y_pred_final = results['y_pred_final']
 accuracy_final = results['accuracy_final']
 precision_final = results['precision_final']
 recall_final = results['recall_final']
@@ -645,9 +591,6 @@ inertia_scores = results['inertia_scores']
 silhouette_scores = results['silhouette_scores']
 calinski_scores = results['calinski_scores']
 davies_scores = results['davies_scores']
-best_k_sil = results['best_k_sil']
-best_k_cal = results['best_k_cal']
-best_k_dav = results['best_k_dav']
 fold_accuracies = results['fold_accuracies']
 mean_acc = results['mean_acc']
 std_acc = results['std_acc']
@@ -657,7 +600,6 @@ total_per_provinsi = results['total_per_provinsi']
 total_per_tahun = results['total_per_tahun']
 status_analysis = results['status_analysis']
 corr_matrix = results['corr_matrix']
-provinsi_stats = results['provinsi_stats']
 best_params = results['best_params']
 
 # =========================================================
@@ -705,7 +647,7 @@ with st.sidebar:
 NO_ZOOM = {'displayModeBar': False, 'scrollZoom': False}
 
 # =========================================================
-# HALAMAN 1: OVERVIEW DASHBOARD (SAMA PERSIS NOTEBOOK)
+# HALAMAN 1: OVERVIEW DASHBOARD
 # =========================================================
 if menu == "🏠 Overview Dashboard":
     st.title("Executive Summary Dashboard")
@@ -733,6 +675,7 @@ if menu == "🏠 Overview Dashboard":
     st.write("")
     col_chart1, col_chart2 = st.columns([1.2, 1], gap="large")
 
+    # GRAFIK 1: Tren Kasus Putus Sekolah Berdasarkan Tahun
     with col_chart1:
         st.subheader("Tren Kasus Putus Sekolah Berdasarkan Tahun")
         trend_df = df.groupby("Periode", as_index=False)["Jumlah"].sum()
@@ -745,7 +688,6 @@ if menu == "🏠 Overview Dashboard":
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=10, r=10, t=10, b=10)
         )
-        # Tambahkan nilai di atas titik (sama notebook)
         for idx, row in trend_df.iterrows():
             fig_trend.add_annotation(
                 x=row['Periode'], y=row['Jumlah'],
@@ -756,8 +698,9 @@ if menu == "🏠 Overview Dashboard":
             )
         st.plotly_chart(fig_trend, use_container_width=True, config=NO_ZOOM)
 
+    # GRAFIK 2: Top 10 Wilayah Kasus Tertinggi
     with col_chart2:
-        st.subheader("Top 10 Provinsi Kasus Tertinggi")
+        st.subheader("Top 10 Wilayah Kasus Tertinggi")
         top10_df = df.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
         fig_top = px.bar(top10_df, x="Jumlah", y="Wilayah", orientation="h", text_auto=",d")
         fig_top.update_traces(marker_color=COLORS['primary'])
@@ -771,7 +714,7 @@ if menu == "🏠 Overview Dashboard":
         st.plotly_chart(fig_top, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
-# HALAMAN 2: EXPLORATORY ANALYSIS (SAMA PERSIS NOTEBOOK)
+# HALAMAN 2: EXPLORATORY ANALYSIS
 # =========================================================
 elif menu == "📊 Exploratory Analysis":
     st.title("Exploratory Data Analysis (EDA)")
@@ -793,100 +736,59 @@ elif menu == "📊 Exploratory Analysis":
 
     st.write("")
     
-    # 4.1 Boxplot dan Bar Chart (Fig 4.1 dari notebook)
     col_e1, col_e2 = st.columns(2, gap="large")
 
+    # GRAFIK 3: Distribusi Putus Sekolah per Kelas (I - VI)
     with col_e1:
-        st.subheader("Boxplot Putus Sekolah per Tingkat")
-        df_melted = filtered_eda[LEVEL_COLS].melt(var_name='Tingkat', value_name='Jumlah')
-        df_melted['Tingkat'] = df_melted['Tingkat'].str.replace('Tingkat - ', 'Kelas ')
-        fig_box = px.box(df_melted, x='Tingkat', y='Jumlah', color='Tingkat',
-                        color_discrete_sequence=px.colors.qualitative.Set2)
-        fig_box.update_layout(
+        st.subheader("Distribusi Putus Sekolah per Kelas (I - VI)")
+        class_sums = filtered_eda[LEVEL_COLS].sum().reset_index()
+        class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
+        class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
+        
+        fig_class = px.bar(class_sums, x="Tingkat Kelas", y="Jumlah Siswa", text_auto=",d", color_discrete_sequence=["#38bdf8"])
+        fig_class.update_layout(
             height=360, font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Jumlah Siswa", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=False,
-            margin=dict(l=10, r=10, t=10, b=10)
+            yaxis=dict(gridcolor="#334155", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
         )
-        st.plotly_chart(fig_box, use_container_width=True, config=NO_ZOOM)
+        st.plotly_chart(fig_class, use_container_width=True, config=NO_ZOOM)
 
+    # GRAFIK 4: Perbandingan Status Sekolah (Negeri vs Swasta)
     with col_e2:
-        st.subheader("Total Putus Sekolah per Tingkat")
-        total_per_tingkat = filtered_eda[LEVEL_COLS].sum()
-        total_per_tingkat.index = total_per_tingkat.index.str.replace('Tingkat - ', 'Kelas ')
-        fig_bar = px.bar(x=total_per_tingkat.index, y=total_per_tingkat.values,
-                        text_auto=",d", color_discrete_sequence=px.colors.sequential.Viridis)
-        fig_bar.update_layout(
+        st.subheader("Perbandingan Status Sekolah (Negeri vs Swasta)")
+        status_df = filtered_eda.groupby("Status Sekolah", as_index=False)["Jumlah"].sum()
+        fig_status = px.pie(status_df, names="Status Sekolah", values="Jumlah", hole=0.4, color_discrete_sequence=["#38bdf8", "#818cf8"])
+        fig_status.update_layout(
             height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", title="Tingkat Kelas", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Total Siswa", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=False,
-            margin=dict(l=10, r=10, t=10, b=10)
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
         )
-        st.plotly_chart(fig_bar, use_container_width=True, config=NO_ZOOM)
+        st.plotly_chart(fig_status, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
     
-    # Statistik Deskriptif (sama notebook 4.1)
-    st.subheader("Statistik Deskriptif per Tingkat Kelas")
-    st.dataframe(tingkat_stats.round(2).style.format("{:,.2f}"), use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Violin Plot & Heatmap (sama notebook Fig 4.1)
-    col_h1, col_h2 = st.columns(2, gap="large")
-    
-    with col_h1:
-        st.subheader("Violin Plot Putus Sekolah per Tingkat")
-        fig_violin = px.violin(df_melted, x='Tingkat', y='Jumlah', color='Tingkat',
-                              box=True, points=False,
-                              color_discrete_sequence=px.colors.qualitative.Set3)
-        fig_violin.update_layout(
-            height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Jumlah Siswa", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=False,
-            margin=dict(l=10, r=10, t=10, b=10)
-        )
-        st.plotly_chart(fig_violin, use_container_width=True, config=NO_ZOOM)
-
-    with col_h2:
-        st.subheader("Heatmap Korelasi Antar Tingkat")
-        corr_tingkat = filtered_eda[LEVEL_COLS].corr()
-        fig_corr = px.imshow(corr_tingkat, text_auto=".2f", aspect="auto",
-                            color_continuous_scale="coolwarm")
-        fig_corr.update_layout(
-            height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_corr, use_container_width=True, config=NO_ZOOM)
-
-    st.markdown("---")
-    
-    # Heatmap Korelasi Lengkap (sama notebook 4.5)
-    st.subheader("Heatmap Korelasi Lengkap")
-    fig_corr_full = px.imshow(corr_matrix, text_auto=".2f", aspect="auto",
-                             color_continuous_scale="coolwarm")
-    fig_corr_full.update_layout(
+    # GRAFIK 5: Heatmap Korelasi Fitur
+    st.subheader("Heatmap Korelasi Fitur")
+    corr_matrix_filtered = filtered_eda[LEVEL_COLS + ["Jumlah"]].corr()
+    fig_corr = px.imshow(
+        corr_matrix_filtered, text_auto=".2f", aspect="auto",
+        color_continuous_scale="Blues"
+    )
+    fig_corr.update_layout(
         height=400, font=dict(color="#f8fafc"),
         xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
     )
-    st.plotly_chart(fig_corr_full, use_container_width=True, config=NO_ZOOM)
+    st.plotly_chart(fig_corr, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
-# HALAMAN 3: K-MEANS CLUSTERING (SAMA PERSIS NOTEBOOK)
+# HALAMAN 3: K-MEANS CLUSTERING
 # =========================================================
 elif menu == "🧩 K-Means Clustering":
     st.title("K-Means Clustering Analysis")
     st.markdown("Pengelompokan tingkat kerawanan per Kabupaten/Kota berdasarkan rata-rata proporsi tingkat dan total kasus.")
     
-    # Metrik (sama notebook 5.2)
+    # Metrik dari notebook
     c_m1, c_m2, c_m3, c_m4 = st.columns(4)
     with c_m1:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>OPTIMAL K</div><div class='metric-num'>K = {optimal_k}</div><div class='metric-sub'>Rendah, Sedang, Tinggi</div></div>", unsafe_allow_html=True)
@@ -899,96 +801,40 @@ elif menu == "🧩 K-Means Clustering":
 
     st.write("")
     
-    tab_c1, tab_c2 = st.tabs(["Metrik Evaluasi Cluster", "PCA 2D Visualizer"])
+    tab_c1, tab_c2 = st.tabs(["Elbow Method", "PCA 2D Visualizer"])
     
     with tab_c1:
-        col_metrics, col_dist = st.columns([1.2, 1], gap="large")
+        col_el, col_dist = st.columns([1.2, 1], gap="large")
         
-        with col_metrics:
-            st.subheader("Metrik Evaluasi per k")
-            # 4 grafik dalam 1 (sama notebook)
-            fig_metrics = go.Figure()
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=inertia_scores,
-                mode='lines+markers', name='Inertia',
-                line=dict(color='#2E86AB', width=2), marker=dict(size=8)
-            ))
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=silhouette_scores,
-                mode='lines+markers', name='Silhouette',
-                line=dict(color='#E74C3C', width=2), marker=dict(size=8)
-            ))
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=calinski_scores,
-                mode='lines+markers', name='Calinski',
-                line=dict(color='#2ECC71', width=2), marker=dict(size=8)
-            ))
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=davies_scores,
-                mode='lines+markers', name='Davies',
-                line=dict(color='#A23B72', width=2), marker=dict(size=8)
-            ))
-            fig_metrics.update_layout(
-                height=400, font=dict(color="#f8fafc"),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(title="Jumlah Cluster (k)", gridcolor="#334155", dtick=1, fixedrange=True),
-                yaxis=dict(title="Inertia", gridcolor="#334155", fixedrange=True, showgrid=False),
-                yaxis2=dict(title="Silhouette", gridcolor="#334155", fixedrange=True,
-                           overlaying='y', side='right', showgrid=False),
-                yaxis3=dict(title="Calinski", gridcolor="#334155", fixedrange=True,
-                           overlaying='y', side='right', showgrid=False, position=0.85),
-                yaxis4=dict(title="Davies", gridcolor="#334155", fixedrange=True,
-                           overlaying='y', side='right', showgrid=False, position=0.95),
-                margin=dict(l=10, r=10, t=10, b=10)
+        # GRAFIK 6: Elbow Method (Inertia vs K)
+        with col_el:
+            st.subheader("Elbow Method (Inertia vs K)")
+            fig_elbow = px.line(x=list(K_range), y=inertia_scores, markers=True, labels={"x": "Jumlah Cluster (K)", "y": "Inertia"})
+            fig_elbow.update_traces(line_color="#38bdf8", marker_size=10)
+            fig_elbow.add_vline(x=optimal_k, line_dash="dash", line_color="#ef4444", annotation_text=f"K Optimal = {optimal_k}")
+            fig_elbow.update_layout(
+                height=350, font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
-            fig_metrics.add_vline(x=optimal_k, line_dash="dash", line_color="#F1C40F",
-                                 annotation_text=f"k={optimal_k}", annotation_position="top")
-            st.plotly_chart(fig_metrics, use_container_width=True, config=NO_ZOOM)
-            
-            # Tabel metrik (sama notebook)
-            metrics_df = pd.DataFrame({
-                'k': list(K_range),
-                'Inertia': inertia_scores,
-                'Silhouette': silhouette_scores,
-                'Calinski': calinski_scores,
-                'Davies': davies_scores
-            })
-            st.dataframe(metrics_df.style.format({
-                'Inertia': '{:.2f}',
-                'Silhouette': '{:.4f}',
-                'Calinski': '{:.2f}',
-                'Davies': '{:.4f}'
-            }), use_container_width=True)
-
+            st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
+        
+        # GRAFIK 7: Distribusi Kluster Kabupaten/Kota
         with col_dist:
-            st.subheader("Distribusi Anggota Cluster")
-            cluster_counts = kmeans_data['Cluster_Label'].value_counts()
-            
-            # Pie Chart (sama notebook 5.5)
-            fig_pie = px.pie(values=cluster_counts.values, names=cluster_counts.index,
-                            hole=0.3, color_discrete_sequence=['#3498DB', '#2ECC71', '#E74C3C'])
-            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-            fig_pie.update_layout(
-                height=200, font=dict(color="#f8fafc"),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=10, r=10, t=10, b=10), showlegend=False
+            st.subheader("Distribusi Kluster Kabupaten/Kota")
+            dist_df = kmeans_data["Cluster_Label"].value_counts().reset_index()
+            dist_df.columns = ["Cluster", "Jumlah Kab/Kota"]
+            fig_dist = px.pie(dist_df, names="Cluster", values="Jumlah Kab/Kota", hole=0.4,
+                              color="Cluster", color_discrete_map={"Cluster 0 (Rendah)": "#22c55e", "Cluster 1 (Sedang)": "#eab308", "Cluster 2 (Tinggi)": "#ef4444"})
+            fig_dist.update_layout(
+                height=350, font=dict(color="#f8fafc"),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
-            st.plotly_chart(fig_pie, use_container_width=True, config=NO_ZOOM)
-            
-            # Bar Chart (sama notebook 5.5)
-            fig_bar_dist = px.bar(x=cluster_counts.index, y=cluster_counts.values,
-                                 text_auto=True, color=cluster_counts.index,
-                                 color_discrete_sequence=['#3498DB', '#2ECC71', '#E74C3C'])
-            fig_bar_dist.update_layout(
-                height=200, font=dict(color="#f8fafc"),
-                xaxis=dict(gridcolor="#334155", title="Cluster", fixedrange=True),
-                yaxis=dict(gridcolor="#334155", title="Jumlah Wilayah", fixedrange=True),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=10, r=10, t=10, b=10), showlegend=False
-            )
-            st.plotly_chart(fig_bar_dist, use_container_width=True, config=NO_ZOOM)
+            st.plotly_chart(fig_dist, use_container_width=True, config=NO_ZOOM)
 
     with tab_c2:
+        # GRAFIK 8: Visualisasi Proyeksi 2D PCA
         st.subheader("Visualisasi Proyeksi 2D PCA")
         
         pca = PCA(n_components=2, random_state=42)
@@ -998,62 +844,33 @@ elif menu == "🧩 K-Means Clustering":
         df_pca["PC1"] = pca_coords[:, 0]
         df_pca["PC2"] = pca_coords[:, 1]
         
-        fig_pca = px.scatter(df_pca, x="PC1", y="PC2", color="Cluster_Label",
-                            hover_data=["Kota/Kab", "Jumlah"],
-                            color_discrete_map={"Cluster 0 (Rendah)": "#3498DB",
-                                               "Cluster 1 (Sedang)": "#2ECC71",
-                                               "Cluster 2 (Tinggi)": "#E74C3C"})
-        fig_pca.update_traces(marker=dict(size=10, opacity=0.7))
-        fig_pca.update_layout(
-            height=450, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}% varian)", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}% varian)", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+        fig_pca = px.scatter(
+            df_pca, x="PC1", y="PC2", color="Cluster_Label",
+            hover_data=["Kota/Kab", "Jumlah"],
+            color_discrete_map={"Cluster 0 (Rendah)": "#22c55e", "Cluster 1 (Sedang)": "#eab308", "Cluster 2 (Tinggi)": "#ef4444"}
         )
-        # Tambahkan centroid (sama notebook 5.6)
-        centroids_pca = pca.transform(kmeans_model.cluster_centers_)
-        fig_pca.add_trace(go.Scatter(
-            x=centroids_pca[:, 0], y=centroids_pca[:, 1],
-            mode='markers', marker=dict(symbol='x', size=15, color='red', line=dict(width=2, color='black')),
-            name='Centroid'
-        ))
+        fig_pca.update_traces(marker=dict(size=9, opacity=0.8))
+        fig_pca.update_layout(
+            height=420, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
         st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
-    
-    # Tabel Ringkasan Cluster (sama notebook 5.7)
-    st.subheader("Tabel Ringkasan Cluster")
-    cluster_summary = kmeans_data.groupby('Cluster_Label').agg({
-        'Kode Kota/Kab': 'count',
-        'Jumlah': 'mean'
-    }).rename(columns={'Kode Kota/Kab': 'Jumlah_Wilayah'})
-    
-    # Proporsi dominan (sama notebook)
-    proporsi_dominan_map = {}
-    for cluster_id in cluster_analysis.index:
-        label = cluster_names[cluster_id]
-        row = cluster_analysis.loc[cluster_id]
-        prop_cols = ['Proporsi_I', 'Proporsi_II', 'Proporsi_III', 'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI']
-        max_prop_idx = np.argmax(row[prop_cols].values)
-        max_tingkat = ['I', 'II', 'III', 'IV', 'V', 'VI'][max_prop_idx]
-        proporsi_dominan_map[label] = f"Tingkat {max_tingkat} ({row[prop_cols[max_prop_idx]]:.3f})"
-    
-    cluster_summary['Proporsi_Dominan'] = cluster_summary.index.map(proporsi_dominan_map)
-    cluster_summary['Persentase'] = (cluster_summary['Jumlah_Wilayah'] / len(kmeans_data) * 100).round(1)
-    st.dataframe(cluster_summary, use_container_width=True)
-    
-    st.subheader("Karakteristik Rata-rata per Cluster")
-    st.dataframe(cluster_analysis.reindex(cluster_names.values()).style.format("{:.3f}"), use_container_width=True)
+    st.subheader("Rata-Rata Karakteristik Cluster")
+    cluster_profile = kmeans_data.groupby("Cluster_Label")[fitur_kmeans].mean().reindex(["Cluster 0 (Rendah)", "Cluster 1 (Sedang)", "Cluster 2 (Tinggi)"])
+    st.dataframe(cluster_profile.style.format("{:,.3f}"), use_container_width=True)
 
 # =========================================================
-# HALAMAN 4: RANDOM FOREST MODEL (SAMA PERSIS NOTEBOOK)
+# HALAMAN 4: RANDOM FOREST MODEL
 # =========================================================
 elif menu == "🌲 Random Forest Model":
     st.title("Random Forest Classification")
     st.markdown(f"Evaluasi performa model Supervised Learning (Evaluasi Pada Data Uji Tahun {tahun_test}).")
     
-    # Metric Cards (sama notebook 6.9)
+    # Metrik dari notebook
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>ACCURACY</div><div class='metric-num'>{accuracy_final*100:.2f}%</div></div>", unsafe_allow_html=True)
@@ -1071,109 +888,47 @@ elif menu == "🌲 Random Forest Model":
     
     col_rf1, col_rf2 = st.columns([1, 1.2], gap="large")
     
+    # GRAFIK 9: Confusion Matrix (Data Uji 2024)
     with col_rf1:
         st.subheader(f"Confusion Matrix (Data Uji {tahun_test})")
         labels = ["Rendah", "Sedang", "Tinggi"]
-        fig_cm = px.imshow(cm_final, x=labels, y=labels, text_auto=True,
-                          color_continuous_scale="Blues", labels=dict(x="Prediksi", y="Aktual"))
+        fig_cm = px.imshow(
+            cm_final, x=labels, y=labels, text_auto=True,
+            color_continuous_scale="Blues", labels=dict(x="Prediksi Model", y="Kelas Aktual")
+        )
         fig_cm.update_layout(
             height=360, font=dict(color="#f8fafc"),
             xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
-        
-        # Normalized Confusion Matrix (sama notebook 6.10)
-        st.subheader("Normalized Confusion Matrix (%)")
-        cm_norm = cm_final.astype('float') / cm_final.sum(axis=1)[:, np.newaxis]
-        fig_cm_norm = px.imshow(cm_norm, x=labels, y=labels, text_auto=".2%",
-                               color_continuous_scale="Blues", labels=dict(x="Prediksi", y="Aktual"))
-        fig_cm_norm.update_layout(
-            height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_cm_norm, use_container_width=True, config=NO_ZOOM)
 
+    # GRAFIK 10: Feature Importance Random Forest
     with col_rf2:
         st.subheader("Feature Importance Random Forest")
-        fi_df = feature_importance.sort_values(by="Importance", ascending=True)
-        fig_fi = px.bar(fi_df, x="Importance", y="Fitur", orientation="h",
-                       text_auto=".4f", color="Importance", color_continuous_scale="viridis")
+        fi_df = feature_importance.copy()
+        fi_df = fi_df.sort_values(by="Importance", ascending=True)
+        
+        fig_fi = px.bar(
+            fi_df, x="Importance", y="Fitur", orientation="h", 
+            text_auto=".4f", color="Importance", color_continuous_scale="Viridis"
+        )
         fig_fi.update_layout(
             height=360, font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(autorange="reversed", gridcolor="#334155", title="Fitur", fixedrange=True),
+            yaxis=dict(
+                autorange="reversed",
+                gridcolor="#334155", 
+                title="Fitur", 
+                fixedrange=True
+            ),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             coloraxis_showscale=False
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
-        
-        # Top 5 Feature Importance (sama notebook 6.11)
-        st.subheader("Top 5 Feature Importance")
-        top5_df = feature_importance.head(5).sort_values(by="Importance", ascending=False)
-        fig_top5 = px.bar(top5_df, x="Fitur", y="Importance", text_auto=".4f",
-                         color="Importance", color_continuous_scale="plasma")
-        fig_top5.update_layout(
-            height=200, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            coloraxis_showscale=False
-        )
-        st.plotly_chart(fig_top5, use_container_width=True, config=NO_ZOOM)
-
-    st.markdown("---")
-    
-    # Classification Report (sama notebook 6.17)
-    col_rf3, col_rf4 = st.columns(2, gap="large")
-    
-    with col_rf3:
-        st.subheader("Classification Report")
-        report_data = []
-        for i, class_name in enumerate(["Rendah", "Sedang", "Tinggi"]):
-            row = per_class_df[per_class_df['Kelas'] == class_name].iloc[0]
-            report_data.append({
-                'Kelas': class_name,
-                'Precision': f"{row['Precision']*100:.2f}%",
-                'Recall': f"{row['Recall']*100:.2f}%",
-                'F1-Score': f"{row['F1-Score']*100:.2f}%",
-                'Support': int(row['Support'])
-            })
-        report_data.append({
-            'Kelas': 'Macro Avg',
-            'Precision': f"{macro_precision*100:.2f}%",
-            'Recall': f"{macro_recall*100:.2f}%",
-            'F1-Score': f"{macro_f1*100:.2f}%",
-            'Support': '-'
-        })
-        st.dataframe(pd.DataFrame(report_data), use_container_width=True)
-
-    with col_rf4:
-        st.subheader("Perbandingan Weighted vs Macro")
-        comparison_data = {
-            'Metrik': ['Precision', 'Recall', 'F1-Score'],
-            'Weighted': [f"{precision_final*100:.2f}%", f"{recall_final*100:.2f}%", f"{f1_final*100:.2f}%"],
-            'Macro': [f"{macro_precision*100:.2f}%", f"{macro_recall*100:.2f}%", f"{macro_f1*100:.2f}%"]
-        }
-        st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
-
-    st.markdown("---")
-    
-    # Perbandingan RF vs Baseline (sama notebook 6.15)
-    st.subheader("Perbandingan Random Forest vs Baseline")
-    comparison_df = pd.DataFrame({
-        'Model': ['Baseline (Most Frequent)', 'Random Forest'],
-        'Accuracy': [f"{baseline_accuracy*100:.2f}%", f"{accuracy_final*100:.2f}%"],
-        'Precision (Weighted)': ['-', f"{precision_final*100:.2f}%"],
-        'Recall (Weighted)': ['-', f"{recall_final*100:.2f}%"],
-        'F1-Score (Weighted)': ['-', f"{f1_final*100:.2f}%"],
-        'Peningkatan': ['-', f"{(accuracy_final - baseline_accuracy)*100:.2f}%"]
-    })
-    st.dataframe(comparison_df, use_container_width=True)
 
 # =========================================================
-# HALAMAN 5: PREDICTIVE SIMULATION (SAMA PERSIS)
+# HALAMAN 5: PREDICTIVE SIMULATION
 # =========================================================
 elif menu == "🔮 Predictive Simulation":
     st.title("Predictive Simulation")
@@ -1255,21 +1010,3 @@ elif menu == "🔮 Predictive Simulation":
             """,
             unsafe_allow_html=True
         )
-        
-        # Detail Probabilitas (sama notebook)
-        st.subheader("Detail Probabilitas per Kategori")
-        proba_df = pd.DataFrame({
-            'Kategori': ['Rendah', 'Sedang', 'Tinggi'],
-            'Probabilitas': pred_proba * 100
-        })
-        fig_proba = px.bar(proba_df, x='Kategori', y='Probabilitas',
-                          text_auto=".1f", color='Kategori',
-                          color_discrete_map={'Rendah': '#22c55e', 'Sedang': '#eab308', 'Tinggi': '#ef4444'})
-        fig_proba.update_layout(
-            height=300, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Probabilitas (%)", fixedrange=True, range=[0, 100]),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=False
-        )
-        st.plotly_chart(fig_proba, use_container_width=True, config=NO_ZOOM)
