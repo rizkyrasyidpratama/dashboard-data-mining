@@ -146,6 +146,12 @@ DATA_PATH = os.path.join(
 LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
 LEVEL_COLS = [f"Tingkat - {lvl}" for lvl in ["I", "II", "III", "IV", "V", "VI"]]
 
+def get_image_base64(path):
+    if os.path.exists(path):
+        with open(path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
+    return None
+
 @st.cache_data
 def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
@@ -206,23 +212,25 @@ if df_data is None:
 # =========================================================
 # 3. SIDEBAR CUSTOM NAVIGATION
 # =========================================================
+logo_b64 = get_image_base64(LOGO_PATH)
+logo_img_html = (
+    f'<div style="background-color: #ffffff; padding: 6px; border-radius: 8px; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; margin-right: 12px;">'
+    f'<img src="data:image/png;base64,{logo_b64}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />'
+    f'</div>'
+) if logo_b64 else ''
+
 with st.sidebar:
-    # MENAMPILKAN LOGO.PNG DARI DIREKTORI LOKAL
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, use_container_width=True)
-        st.write("")
-    
     st.markdown(
-        """
-        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid #334155; margin-bottom: 1.2rem;">
-            <div style="font-size: 0.65rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem;">
-                DATA MINING SYSTEM
-            </div>
-            <div style="font-size: 1.05rem; font-weight: 800; color: #ffffff; line-height: 1.3;">
-                Analisis Putus Sekolah SD/MI
-            </div>
-            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem;">
-                Clustering & Predictive Suite
+        f"""
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 1.1rem; border-radius: 12px; border: 1px solid #334155; margin-bottom: 1.2rem; display: flex; align-items: center;">
+            {logo_img_html}
+            <div>
+                <div style="font-size: 0.65rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.1rem;">
+                    DATA MINING SYSTEM
+                </div>
+                <div style="font-size: 0.95rem; font-weight: 800; color: #ffffff; line-height: 1.2;">
+                    Analisis Putus Sekolah
+                </div>
             </div>
         </div>
         """,
@@ -265,7 +273,6 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-# Konfigurasi Pengunci Zoom & Sembunyikan Toolbar Plotly
 NO_ZOOM = {
     'displayModeBar': False,
     'scrollZoom': False
