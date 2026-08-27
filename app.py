@@ -19,8 +19,7 @@ from sklearn.metrics import (
     recall_score,
     silhouette_score,
 )
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 # =========================================================
 # 1. KONFIGURASI HALAMAN & THEME STYLING GLOBAL
@@ -136,7 +135,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. DATA LOAD & PREPROCESSING CACHE
+# 2. DATA LOAD & PREPROCESSING SESUAI GOOGLE COLAB
 # =========================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(
@@ -144,7 +143,8 @@ DATA_PATH = os.path.join(
     "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv",
 )
 LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
-LEVEL_COLS = [f"Tingkat - {lvl}" for lvl in ["I", "II", "III", "IV", "V", "VI"]]
+ROMAWI_LIST = ['I', 'II', 'III', 'IV', 'V', 'VI']
+LEVEL_COLS = [f"Tingkat - {lvl}" for lvl in ROMAWI_LIST]
 
 def get_image_base64(path):
     if os.path.exists(path):
@@ -155,42 +155,125 @@ def get_image_base64(path):
 @st.cache_data
 def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
     
     df = pd.read_csv(DATA_PATH)
     
     for col in LEVEL_COLS + ["Jumlah"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-            
-    feature_cols = [c for c in LEVEL_COLS if c in df.columns]
+
+    # ---------------------------------------------------------
+    # PERSAPAN DATA K-MEANS (Sesuai Bagian 3.9 & 5 Colab)
+    # ---------------------------------------------------------
+    df_kmeans_tahunan = df.groupby(['Periode', 'Kode Kota/Kab', 'Kota/Kab']).agg({
+        'Tingkat - I': 'sum',
+        'Tingkat - II': 'sum',
+        'Tingkat - III': 'sum',
+        'Tingkat - IV': 'sum',
+        'Tingkat - V': 'sum',
+        'Tingkat - VI': 'sum',
+        'Jumlah': 'sum'
+    }).reset_index()
+
+    for romawi in ROMAWI_LIST:
+        df_kmeans_tahunan[f'Proporsi_{romawi}'] = np.where(
+            df_kmeans_tahunan['Jumlah'] > 0,
+            df_kmeans_tahunan[f'Tingkat - {romawi}'] / df_kmeans_tahunan['Jumlah'],
+            0
+        )
+
+    kmeans_data = df_kmeans_tahunan.groupby('Kode Kota/Kab').agg({
+        'Proporsi_I': 'mean',
+        'Proporsi_II': 'mean',
+        'Proporsi_III': 'mean',
+        'Proporsi_IV': 'mean',
+        'Proporsi_V': 'mean',
+        'Proporsi_VI': 'mean',
+        'Jumlah': 'mean',
+        'Kota/Kab': 'first'
+    }).reset_index()
+
+    fitur_kmeans = ['Proporsi_I', 'Proporsi_II', 'Proporsi_III', 'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI', 'Jumlah']
     
-    # 1. K-MEANS CLUSTERING (K=3)
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df[feature_cols])
+    scaler_kmeans = StandardScaler()
+    X_kmeans_scaled = scaler_kmeans.fit_transform(kmeans_data[fitur_kmeans])
     
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
-    df["Cluster_Id"] = kmeans.fit_predict(X_scaled)
-    
-    cluster_means = df.groupby("Cluster_Id")["Jumlah"].mean().sort_values()
+    kmeans_model = KMeans(n_clusters=3, random_state=42, n_init=10)
+    kmeans_data["Cluster_Id"] = kmeans_model.fit_predict(X_kmeans_scaled)
+
+    # Urutkan cluster berdasarkan rata-rata jumlah
+    cluster_means = kmeans_data.groupby("Cluster_Id")["Jumlah"].mean().sort_values()
     label_map = {
         cluster_means.index[0]: "Rendah",
         cluster_means.index[1]: "Sedang",
         cluster_means.index[2]: "Tinggi"
     }
-    df["Cluster"] = df["Cluster_Id"].map(label_map)
+    kmeans_data["Cluster"] = kmeans_data["Cluster_Id"].map(label_map)
+
+    # ---------------------------------------------------------
+    # PERSIAPAN DATA RANDOM FOREST (Sesuai Bagian 3.1-3.8 Colab)
+    # ---------------------------------------------------------
+    df_agregat = df.groupby(['Periode', 'Wilayah', 'Kota/Kab', 'Kode Kota/Kab', 'Status Sekolah']).agg({
+        'Tingkat - I': 'sum', 'Tingkat - II': 'sum', 'Tingkat - III': 'sum',
+        'Tingkat - IV': 'sum', 'Tingkat - V': 'sum', 'Tingkat - VI': 'sum',
+        'Jumlah': 'sum'
+    }).reset_index()
+
+    for romawi in ROMAWI_LIST:
+        df_agregat[f'Proporsi_{romawi}'] = np.where(
+            df_agregat['Jumlah'] > 0,
+            df_agregat[f'Tingkat - {romawi}'] / df_agregat['Jumlah'],
+            0
+        )
+
+    le_status = LabelEncoder()
+    df_agregat['Status_Encoded'] = le_status.fit_transform(df_agregat['Status Sekolah'])
+
+    df_agregat = df_agregat.sort_values(['Kode Kota/Kab', 'Status Sekolah', 'Periode'])
+    group_cols = ['Kode Kota/Kab', 'Status Sekolah']
+
+    df_agregat['Jumlah_Lag1'] = df_agregat.groupby(group_cols)['Jumlah'].shift(1)
+    for romawi in ROMAWI_LIST:
+        df_agregat[f'Proporsi_{romawi}_Lag1'] = df_agregat.groupby(group_cols)[f'Proporsi_{romawi}'].shift(1)
+
+    df_agregat['Selisih_Tahun'] = df_agregat['Periode'] - df_agregat.groupby(group_cols)['Periode'].shift(1)
     
-    # 2. RANDOM FOREST CLASSIFICATION
-    X = df[feature_cols]
-    y = df["Cluster"]
+    df_rf = df_agregat[df_agregat['Selisih_Tahun'] == 1].copy()
+
+    # Kategori Target (Berdasarkan Quantile dari Train)
+    all_years = sorted(df_rf['Periode'].unique())
+    tahun_test = all_years[-1] # 2024
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    train_mask = df_rf['Periode'] < tahun_test
+    test_mask = df_rf['Periode'] == tahun_test
     
+    Q1 = df_rf.loc[train_mask, 'Jumlah'].quantile(0.25)
+    Q3 = df_rf.loc[train_mask, 'Jumlah'].quantile(0.75)
+    
+    def assign_target(x):
+        if x <= Q1:
+            return "Rendah"
+        elif x <= Q3:
+            return "Sedang"
+        else:
+            return "Tinggi"
+            
+    df_rf['Target'] = df_rf['Jumlah'].apply(assign_target)
+
+    fitur_rf = ['Jumlah_Lag1', 'Proporsi_I_Lag1', 'Proporsi_II_Lag1', 'Proporsi_III_Lag1', 
+                'Proporsi_IV_Lag1', 'Proporsi_V_Lag1', 'Proporsi_VI_Lag1', 'Status_Encoded', 'Periode']
+
+    X_train = df_rf.loc[train_mask, fitur_rf]
+    y_train = df_rf.loc[train_mask, 'Target']
+    X_test = df_rf.loc[test_mask, fitur_rf]
+    y_test = df_rf.loc[test_mask, 'Target']
+
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
     rf_model.fit(X_train, y_train)
-    
+
     y_pred = rf_model.predict(X_test)
-    
+
     rf_metrics = {
         "acc": accuracy_score(y_test, y_pred),
         "prec": precision_score(y_test, y_pred, average="weighted"),
@@ -198,14 +281,14 @@ def load_and_prep_data():
         "f1": f1_score(y_test, y_pred, average="weighted"),
         "baseline_acc": y_train.value_counts(normalize=True).max(),
         "cm": confusion_matrix(y_test, y_pred, labels=["Rendah", "Sedang", "Tinggi"]),
-        "feature_importances": pd.Series(rf_model.feature_importances_, index=feature_cols).sort_values(ascending=True)
+        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=True)
     }
-    
-    return df, feature_cols, scaler, kmeans, rf_model, rf_metrics
 
-df_data, FEATURE_COLS, scaler_obj, kmeans_obj, rf_model_obj, rf_results = load_and_prep_data()
+    return df, kmeans_data, scaler_kmeans, kmeans_model, rf_model, rf_metrics, le_status
 
-if df_data is None:
+df_raw, df_kmeans, scaler_kmeans_obj, kmeans_obj, rf_model_obj, rf_results, le_status_obj = load_and_prep_data()
+
+if df_raw is None:
     st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia di folder utama.")
     st.stop()
 
@@ -240,7 +323,6 @@ with st.sidebar:
 
     st.markdown("<p style='font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;'>MAIN MENU</p>", unsafe_allow_html=True)
 
-    # Ikon disisa hanya di sidebar navigation
     menu = st.radio(
         label="Navigasi Utama",
         options=[
@@ -266,10 +348,7 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-NO_ZOOM = {
-    'displayModeBar': False,
-    'scrollZoom': False
-}
+NO_ZOOM = {'displayModeBar': False, 'scrollZoom': False}
 
 # =========================================================
 # HALAMAN 1: OVERVIEW DASHBOARD
@@ -280,10 +359,10 @@ if menu == "🏠 Overview Dashboard":
     st.write("")
     
     c1, c2, c3, c4, c5 = st.columns(5)
-    total_records = len(df_data)
-    total_prov = df_data["Wilayah"].nunique() if "Wilayah" in df_data.columns else 0
-    periode_range = f"{df_data['Periode'].min()} - {df_data['Periode'].max()}" if "Periode" in df_data.columns else "-"
-    total_cases = int(df_data["Jumlah"].sum())
+    total_records = len(df_raw)
+    total_prov = df_raw["Wilayah"].nunique() if "Wilayah" in df_raw.columns else 0
+    periode_range = f"{df_raw['Periode'].min()} - {df_raw['Periode'].max()}" if "Periode" in df_raw.columns else "-"
+    total_cases = int(df_raw["Jumlah"].sum())
     
     with c1:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL REKORD DATA</div><div class='metric-num'>{total_records:,}</div></div>", unsafe_allow_html=True)
@@ -294,7 +373,7 @@ if menu == "🏠 Overview Dashboard":
     with c4:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL KASUS</div><div class='metric-num'>{total_cases:,}</div></div>", unsafe_allow_html=True)
     with c5:
-        st.markdown(f"<div class='metric-box'><div class='metric-label'>RF TEST EVALUASI</div><div class='metric-num'>20% Data</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>RF TEST EVALUASI</div><div class='metric-num'>Tahun 2024</div></div>", unsafe_allow_html=True)
 
     st.write("")
     st.write("")
@@ -303,8 +382,8 @@ if menu == "🏠 Overview Dashboard":
 
     with col_chart1:
         st.subheader("Tren Kasus Putus Sekolah Berdasarkan Tahun")
-        if "Periode" in df_data.columns:
-            trend_df = df_data.groupby("Periode", as_index=False)["Jumlah"].sum()
+        if "Periode" in df_raw.columns:
+            trend_df = df_raw.groupby("Periode", as_index=False)["Jumlah"].sum()
             fig_trend = px.line(trend_df, x="Periode", y="Jumlah", markers=True)
             fig_trend.update_traces(line_color="#38bdf8", line_width=3, marker_size=8)
             fig_trend.update_layout(
@@ -318,7 +397,7 @@ if menu == "🏠 Overview Dashboard":
 
     with col_chart2:
         st.subheader("Top 10 Wilayah Kasus Tertinggi")
-        top10_df = df_data.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
+        top10_df = df_raw.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
         fig_top = px.bar(top10_df, x="Jumlah", y="Wilayah", orientation="h", text_auto=",d")
         fig_top.update_traces(marker_color="#38bdf8")
         fig_top.update_layout(
@@ -339,13 +418,13 @@ elif menu == "📊 Exploratory Analysis":
     
     c_f1, c_f2 = st.columns(2)
     with c_f1:
-        years = ["Semua Tahun"] + sorted(df_data["Periode"].unique().tolist()) if "Periode" in df_data.columns else ["Semua"]
+        years = ["Semua Tahun"] + sorted(df_raw["Periode"].unique().tolist()) if "Periode" in df_raw.columns else ["Semua"]
         sel_year = st.selectbox("Filter Tahun Periode:", years)
     with c_f2:
-        regions = ["Semua Wilayah"] + sorted(df_data["Wilayah"].unique().tolist()) if "Wilayah" in df_data.columns else ["Semua"]
+        regions = ["Semua Wilayah"] + sorted(df_raw["Wilayah"].unique().tolist()) if "Wilayah" in df_raw.columns else ["Semua"]
         sel_region = st.selectbox("Filter Wilayah / Provinsi:", regions)
 
-    filtered_eda = df_data.copy()
+    filtered_eda = df_raw.copy()
     if sel_year != "Semua Tahun":
         filtered_eda = filtered_eda[filtered_eda["Periode"] == sel_year]
     if sel_region != "Semua Wilayah":
@@ -357,7 +436,7 @@ elif menu == "📊 Exploratory Analysis":
 
     with col_e1:
         st.subheader("Distribusi Putus Sekolah per Kelas (I - VI)")
-        class_sums = filtered_eda[FEATURE_COLS].sum().reset_index()
+        class_sums = filtered_eda[LEVEL_COLS].sum().reset_index()
         class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
         class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
         
@@ -383,7 +462,7 @@ elif menu == "📊 Exploratory Analysis":
 
     st.markdown("---")
     st.subheader("Heatmap Korelasi Fitur")
-    corr_matrix = filtered_eda[FEATURE_COLS + ["Jumlah"]].corr()
+    corr_matrix = filtered_eda[LEVEL_COLS + ["Jumlah"]].corr()
     fig_corr = px.imshow(
         corr_matrix, text_auto=".2f", aspect="auto",
         color_continuous_scale="Blues"
@@ -400,24 +479,24 @@ elif menu == "📊 Exploratory Analysis":
 # =========================================================
 elif menu == "🧩 K-Means Clustering":
     st.title("K-Means Clustering Analysis")
-    st.markdown("Pengelompokan pola angka putus sekolah wilayah berdasarkan analisis Unsupervised Learning.")
+    st.markdown("Pengelompokan tingkat kerawanan per Kabupaten/Kota berdasarkan rata-rata proporsi tingkat dan total kasus.")
     
-    scaler_tmp = StandardScaler()
-    X_sc = scaler_tmp.fit_transform(df_data[FEATURE_COLS])
+    fitur_k = ['Proporsi_I', 'Proporsi_II', 'Proporsi_III', 'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI', 'Jumlah']
+    X_sc = scaler_kmeans_obj.transform(df_kmeans[fitur_k])
     
-    sil = silhouette_score(X_sc, df_data["Cluster_Id"])
-    ch = calinski_harabasz_score(X_sc, df_data["Cluster_Id"])
-    db = davies_bouldin_score(X_sc, df_data["Cluster_Id"])
+    sil = silhouette_score(X_sc, df_kmeans["Cluster_Id"])
+    ch = calinski_harabasz_score(X_sc, df_kmeans["Cluster_Id"])
+    db = davies_bouldin_score(X_sc, df_kmeans["Cluster_Id"])
 
     c_m1, c_m2, c_m3, c_m4 = st.columns(4)
     with c_m1:
         st.markdown("<div class='metric-box'><div class='metric-label'>OPTIMAL K</div><div class='metric-num'>K = 3</div><div class='metric-sub'>Rendah, Sedang, Tinggi</div></div>", unsafe_allow_html=True)
     with c_m2:
-        st.markdown(f"<div class='metric-box'><div class='metric-label'>SILHOUETTE SCORE</div><div class='metric-num'>{sil:.3f}</div><div class='metric-sub'>Struktur Cluster Sangat Baik</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>SILHOUETTE SCORE</div><div class='metric-num'>{sil:.3f}</div><div class='metric-sub'>Evaluasi K-Means</div></div>", unsafe_allow_html=True)
     with c_m3:
-        st.markdown(f"<div class='metric-box'><div class='metric-label'>CALINSKI-HARABASZ</div><div class='metric-num'>{ch:,.1f}</div><div class='metric-sub'>Separasi Maksimal</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>CALINSKI-HARABASZ</div><div class='metric-num'>{ch:,.1f}</div><div class='metric-sub'>Separasi Kluster</div></div>", unsafe_allow_html=True)
     with c_m4:
-        st.markdown(f"<div class='metric-box'><div class='metric-label'>DAVIES-BOULDIN</div><div class='metric-num'>{db:.3f}</div><div class='metric-sub'>Similaritas Antar Cluster</div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>DAVIES-BOULDIN</div><div class='metric-num'>{db:.3f}</div><div class='metric-sub'>Similaritas Kluster</div></div>", unsafe_allow_html=True)
 
     st.write("")
     
@@ -428,7 +507,7 @@ elif menu == "🧩 K-Means Clustering":
         with col_el:
             st.subheader("Elbow Method (Inertia vs K)")
             inertias = []
-            K_range = range(2, 7)
+            K_range = range(2, 11)
             for k in K_range:
                 km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(X_sc)
                 inertias.append(km.inertia_)
@@ -445,10 +524,10 @@ elif menu == "🧩 K-Means Clustering":
             st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
             
         with col_dist:
-            st.subheader("Distribusi Anggota Cluster")
-            dist_df = df_data["Cluster"].value_counts().reset_index()
-            dist_df.columns = ["Cluster", "Jumlah Wilayah"]
-            fig_dist = px.pie(dist_df, names="Cluster", values="Jumlah Wilayah", hole=0.4,
+            st.subheader("Distribusi Kluster Kabupaten/Kota")
+            dist_df = df_kmeans["Cluster"].value_counts().reset_index()
+            dist_df.columns = ["Cluster", "Jumlah Kab/Kota"]
+            fig_dist = px.pie(dist_df, names="Cluster", values="Jumlah Kab/Kota", hole=0.4,
                               color="Cluster", color_discrete_map={"Rendah": "#22c55e", "Sedang": "#eab308", "Tinggi": "#ef4444"})
             fig_dist.update_layout(
                 height=350, font=dict(color="#f8fafc"),
@@ -458,17 +537,16 @@ elif menu == "🧩 K-Means Clustering":
 
     with tab_c2:
         st.subheader("Visualisasi Proyeksi 2D PCA")
-        st.caption("Catatan: PCA digunakan murni untuk memproyeksikan data ke dalam 2 dimensi visualisasi, bukan untuk proses clustering.")
         
         pca = PCA(n_components=2)
         pca_coords = pca.fit_transform(X_sc)
-        df_pca = df_data.copy()
+        df_pca = df_kmeans.copy()
         df_pca["PC1"] = pca_coords[:, 0]
         df_pca["PC2"] = pca_coords[:, 1]
         
         fig_pca = px.scatter(
             df_pca, x="PC1", y="PC2", color="Cluster",
-            hover_data=["Wilayah", "Jumlah"] if "Wilayah" in df_pca.columns else ["Jumlah"],
+            hover_data=["Kota/Kab", "Jumlah"],
             color_discrete_map={"Rendah": "#22c55e", "Sedang": "#eab308", "Tinggi": "#ef4444"}
         )
         fig_pca.update_traces(marker=dict(size=9, opacity=0.8))
@@ -482,15 +560,15 @@ elif menu == "🧩 K-Means Clustering":
 
     st.markdown("---")
     st.subheader("Rata-Rata Karakteristik Cluster")
-    cluster_profile = df_data.groupby("Cluster")[FEATURE_COLS + ["Jumlah"]].mean().reindex(["Rendah", "Sedang", "Tinggi"])
-    st.dataframe(cluster_profile.style.format("{:,.1f}"), use_container_width=True)
+    cluster_profile = df_kmeans.groupby("Cluster")[fitur_k].mean().reindex(["Rendah", "Sedang", "Tinggi"])
+    st.dataframe(cluster_profile.style.format("{:,.3f}"), use_container_width=True)
 
 # =========================================================
 # HALAMAN 4: RANDOM FOREST MODEL
 # =========================================================
 elif menu == "🌲 Random Forest Model":
     st.title("Random Forest Classification")
-    st.markdown("Evaluasi performa model Supervised Learning untuk mengklasifikasikan kategori tingkat kerawanan wilayah.")
+    st.markdown("Evaluasi performa model Supervised Learning (Evaluasi Pada Data Uji Tahun 2024).")
     
     m = rf_results
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -511,7 +589,7 @@ elif menu == "🌲 Random Forest Model":
     col_rf1, col_rf2 = st.columns([1, 1.2], gap="large")
     
     with col_rf1:
-        st.subheader("Confusion Matrix")
+        st.subheader("Confusion Matrix (Data Uji 2024)")
         labels = ["Rendah", "Sedang", "Tinggi"]
         fig_cm = px.imshow(
             m["cm"], x=labels, y=labels, text_auto=True,
@@ -528,7 +606,6 @@ elif menu == "🌲 Random Forest Model":
         st.subheader("Feature Importance")
         fi_df = m["feature_importances"].reset_index()
         fi_df.columns = ["Fitur", "Importance"]
-        fi_df["Fitur"] = fi_df["Fitur"].str.replace("Tingkat - ", "Kelas ")
         
         fig_fi = px.bar(fi_df, x="Importance", y="Fitur", orientation="h", text_auto=".3f", color_discrete_sequence=["#38bdf8"])
         fig_fi.update_layout(
@@ -538,36 +615,57 @@ elif menu == "🌲 Random Forest Model":
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
-        st.caption("Feature importance menunjukkan kontribusi relatif fitur terhadap keputusan klasifikasi model, bukan hubungan sebab-akibat langsung.")
 
 # =========================================================
 # HALAMAN 5: PREDICTIVE SIMULATION
 # =========================================================
 elif menu == "🔮 Predictive Simulation":
     st.title("Predictive Simulation")
-    st.markdown("Simulasi prediksi kategori tingkat kerawanan wilayah menggunakan model Random Forest yang telah dilatih.")
+    st.markdown("Simulasi prediksi tingkat kerawanan wilayah berdasarkan **Data Tahun Sebelumnya (Lag-1)** & Karakteristik Status.")
     
     st.write("")
     
     with st.form("pred_form"):
-        st.subheader("Input Jumlah Siswa Putus Sekolah per Tingkat Kelas")
+        st.subheader("Input Parameter Tahun Sebelumnya (t-1)")
         
-        c_i1, c_i2, c_i3 = st.columns(3)
+        c_i1, c_i2 = st.columns(2)
         with c_i1:
-            val_k1 = st.number_input("Jumlah Siswa Kelas I", min_value=0, value=150, step=10)
-            val_k2 = st.number_input("Jumlah Siswa Kelas II", min_value=0, value=120, step=10)
+            val_jumlah_lag1 = st.number_input("Total Putus Sekolah Tahun Sebelumnya (Jumlah_Lag1)", min_value=0, value=500, step=10)
+            status_input = st.selectbox("Status Sekolah", options=list(le_status_obj.classes_))
+            periode_target = st.number_input("Tahun Yang Diprediksi (Periode)", min_value=2024, max_value=2030, value=2025)
+        
         with c_i2:
-            val_k3 = st.number_input("Jumlah Siswa Kelas III", min_value=0, value=180, step=10)
-            val_k4 = st.number_input("Jumlah Siswa Kelas IV", min_value=0, value=200, step=10)
-        with c_i3:
-            val_k5 = st.number_input("Jumlah Siswa Kelas V", min_value=0, value=210, step=10)
-            val_k6 = st.number_input("Jumlah Siswa Kelas VI", min_value=0, value=90, step=10)
+            st.markdown("**Jumlah Siswa Per Kelas Tahun Sebelumnya (t-1)**")
+            v_k1 = st.number_input("Jumlah Kelas I (Lag1)", min_value=0, value=80, step=5)
+            v_k2 = st.number_input("Jumlah Kelas II (Lag1)", min_value=0, value=70, step=5)
+            v_k3 = st.number_input("Jumlah Kelas III (Lag1)", min_value=0, value=90, step=5)
+            v_k4 = st.number_input("Jumlah Kelas IV (Lag1)", min_value=0, value=100, step=5)
+            v_k5 = st.number_input("Jumlah Kelas V (Lag1)", min_value=0, value=110, step=5)
+            v_k6 = st.number_input("Jumlah Kelas VI (Lag1)", min_value=0, value=50, step=5)
             
         st.write("")
         submit_btn = st.form_submit_button("PREDIKSI KATEGORI WILAYAH", use_container_width=True)
 
     if submit_btn:
-        input_data = pd.DataFrame([[val_k1, val_k2, val_k3, val_k4, val_k5, val_k6]], columns=FEATURE_COLS)
+        tot_k = v_k1 + v_k2 + v_k3 + v_k4 + v_k5 + v_k6
+        denom = tot_k if tot_k > 0 else 1
+        
+        p_i = v_k1 / denom
+        p_ii = v_k2 / denom
+        p_iii = v_k3 / denom
+        p_iv = v_k4 / denom
+        p_v = v_k5 / denom
+        p_vi = v_k6 / denom
+        
+        status_encoded = le_status_obj.transform([status_input])[0]
+        
+        fitur_rf = ['Jumlah_Lag1', 'Proporsi_I_Lag1', 'Proporsi_II_Lag1', 'Proporsi_III_Lag1', 
+                    'Proporsi_IV_Lag1', 'Proporsi_V_Lag1', 'Proporsi_VI_Lag1', 'Status_Encoded', 'Periode']
+                    
+        input_data = pd.DataFrame([[
+            val_jumlah_lag1, p_i, p_ii, p_iii, p_iv, p_v, p_vi, status_encoded, periode_target
+        ]], columns=fitur_rf)
+        
         pred_label = rf_model_obj.predict(input_data)[0]
         pred_proba = rf_model_obj.predict_proba(input_data)[0]
         max_proba = max(pred_proba) * 100
