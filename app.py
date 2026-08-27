@@ -161,52 +161,68 @@ with col3:
     """, unsafe_allow_html=True)
 
 
-# Visualisasi Utama
+# Membuat Tab Layout
 st.markdown("---")
+tab1, tab2, tab3 = st.tabs(["📊 Ringkasan & Tren", "🏫 Analisis Kelas", "📋 Detail Data"])
 
-col_chart1, col_chart2 = st.columns(2)
-
-with col_chart1:
-    st.subheader("📈 Distribusi Kasus per Tahun")
-    if not filtered_df.empty:
-        trend_data = filtered_df.groupby('Periode')['Jumlah'].sum().reset_index()
-        fig_trend = px.line(trend_data, x='Periode', y='Jumlah', markers=True, 
-                            title="Total Siswa Putus Sekolah per Tahun",
-                            color_discrete_sequence=['#3498DB'])
-        fig_trend.update_xaxes(type='category')
-        st.plotly_chart(fig_trend, use_container_width=True)
-    else:
-        st.info("Tidak ada data untuk ditampilkan.")
-
-with col_chart2:
-    st.subheader("🏫 Kasus Berdasarkan Status Sekolah")
-    if not filtered_df.empty:
-        status_data = filtered_df.groupby('Status Sekolah')['Jumlah'].sum().reset_index()
-        fig_pie = px.pie(status_data, values='Jumlah', names='Status Sekolah', 
-                         title="Persentase Kasus: Negeri vs Swasta",
-                         color_discrete_sequence=['#2ECC71', '#E74C3C'],
-                         hole=0.4)
-        st.plotly_chart(fig_pie, use_container_width=True)
-    else:
-        st.info("Tidak ada data untuk ditampilkan.")
-
-# Analisis Tingkat Kelas
-st.markdown("---")
-st.subheader("📊 Analisis Berdasarkan Tingkat Kelas")
-
-tingkat_cols = ['Tingkat - I', 'Tingkat - II', 'Tingkat - III', 'Tingkat - IV', 'Tingkat - V', 'Tingkat - VI']
-if not filtered_df.empty:
-    tingkat_data = filtered_df[tingkat_cols].sum().reset_index()
-    tingkat_data.columns = ['Tingkat Kelas', 'Total Putus Sekolah']
+# ================= TAB 1: RINGKASAN & TREN =================
+with tab1:
+    col_chart1, col_chart2 = st.columns(2)
     
-    fig_bar = px.bar(tingkat_data, x='Tingkat Kelas', y='Total Putus Sekolah',
-                     title="Total Siswa Putus Sekolah di Setiap Tingkat Kelas",
-                     color='Total Putus Sekolah', color_continuous_scale='Blues')
-    st.plotly_chart(fig_bar, use_container_width=True)
-else:
-    st.info("Tidak ada data untuk ditampilkan.")
+    with col_chart1:
+        st.subheader("📈 Distribusi Kasus per Tahun")
+        if not filtered_df.empty:
+            trend_data = filtered_df.groupby('Periode')['Jumlah'].sum().reset_index()
+            fig_trend = px.line(trend_data, x='Periode', y='Jumlah', markers=True, 
+                                title="Total Siswa Putus Sekolah per Tahun",
+                                color_discrete_sequence=['#3498DB'])
+            fig_trend.update_xaxes(type='category')
+            st.plotly_chart(fig_trend, use_container_width=True)
+        else:
+            st.info("Tidak ada data untuk ditampilkan.")
+    
+    with col_chart2:
+        st.subheader("🏫 Kasus Berdasarkan Status Sekolah")
+        if not filtered_df.empty:
+            status_data = filtered_df.groupby('Status Sekolah')['Jumlah'].sum().reset_index()
+            fig_pie = px.pie(status_data, values='Jumlah', names='Status Sekolah', 
+                             title="Persentase Kasus: Negeri vs Swasta",
+                             color_discrete_sequence=['#2ECC71', '#E74C3C'],
+                             hole=0.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Tidak ada data untuk ditampilkan.")
 
-# Data Tabel
-st.markdown("---")
-st.subheader("📋 Detail Data")
-st.dataframe(filtered_df, use_container_width=True)
+# ================= TAB 2: ANALISIS KELAS =================
+with tab2:
+    st.subheader("📊 Analisis Berdasarkan Tingkat Kelas")
+    tingkat_cols = ['Tingkat - I', 'Tingkat - II', 'Tingkat - III', 'Tingkat - IV', 'Tingkat - V', 'Tingkat - VI']
+    
+    if not filtered_df.empty:
+        tingkat_data = filtered_df[tingkat_cols].sum().reset_index()
+        tingkat_data.columns = ['Tingkat Kelas', 'Total Putus Sekolah']
+        
+        fig_bar = px.bar(tingkat_data, x='Tingkat Kelas', y='Total Putus Sekolah',
+                         title="Total Siswa Putus Sekolah di Setiap Tingkat Kelas",
+                         color='Total Putus Sekolah', color_continuous_scale='Blues')
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("Tidak ada data untuk ditampilkan.")
+
+# ================= TAB 3: DETAIL DATA =================
+with tab3:
+    st.subheader("📋 Detail Tabel Data")
+    if not filtered_df.empty:
+        # Tombol Download Data
+        csv = filtered_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="⬇️ Unduh Data (CSV)",
+            data=csv,
+            file_name='data_putus_sekolah_filtered.csv',
+            mime='text/csv',
+        )
+        
+        st.dataframe(filtered_df, use_container_width=True, height=500)
+    else:
+        st.info("Tidak ada data untuk ditampilkan.")
+
