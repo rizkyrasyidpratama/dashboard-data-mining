@@ -22,55 +22,64 @@ st.markdown("""
     <style>
     /* Global Styling */
     .main {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background: #0f172a;
         font-family: 'Inter', sans-serif;
     }
     
     /* Headers */
-    h1, h2, h3 {
-        color: #1e293b !important;
+    h1, h2, h3, h4, h5, h6 {
+        color: #f8fafc !important;
         font-weight: 800 !important;
+    }
+    p, span, div {
+        color: #e2e8f0;
     }
     
     /* Metric Cards dengan efek Glassmorphism & Hover */
     .metric-card {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(10px);
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
         padding: 25px;
         border-radius: 16px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
         text-align: center;
         margin-bottom: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     .metric-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        box-shadow: 0 20px 25px -5px rgba(0, 242, 254, 0.15), 0 10px 10px -5px rgba(0, 242, 254, 0.1);
+        border: 1px solid rgba(0, 242, 254, 0.3);
     }
     
     /* Typography di dalam Metric Card */
     .metric-title {
-        color: #64748b;
+        color: #94a3b8;
         font-size: 14px;
         text-transform: uppercase;
         font-weight: 700;
         letter-spacing: 1px;
     }
     .metric-value {
-        color: #0f172a;
         font-size: 38px;
         font-weight: 900;
         margin-top: 12px;
-        background: -webkit-linear-gradient(45deg, #2563eb, #3b82f6);
+        background: -webkit-linear-gradient(45deg, #00f2fe, #4facfe, #a18cd1);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
     
     /* Penyesuaian Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e2e8f0;
+        background-color: #1e293b;
+        border-right: 1px solid #334155;
+    }
+    
+    /* Tabs & Streamlit Elements Styling Overrides */
+    div[data-testid="stExpander"] {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -106,7 +115,7 @@ with col_logo:
 
 with col_title:
     st.title("Dashboard Analisis Putus Sekolah")
-st.markdown("<p style='font-size: 18px; color: #475569;'>Visualisasi dan eksplorasi data peserta didik putus sekolah tingkat SD/MI Sederajat berdasarkan dataset yang ada.</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 18px; color: #94a3b8;'>Visualisasi dan eksplorasi data peserta didik putus sekolah tingkat SD/MI Sederajat berdasarkan dataset yang ada.</p>", unsafe_allow_html=True)
 
 # Sidebar Filters
 st.sidebar.header("🔍 Filter Data")
@@ -175,8 +184,10 @@ with tab1:
             trend_data = filtered_df.groupby('Periode')['Jumlah'].sum().reset_index()
             fig_trend = px.line(trend_data, x='Periode', y='Jumlah', markers=True, 
                                 title="Total Siswa Putus Sekolah per Tahun",
-                                color_discrete_sequence=['#3498DB'])
+                                color_discrete_sequence=['#00f2fe'],
+                                template='plotly_dark')
             fig_trend.update_xaxes(type='category')
+            fig_trend.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_trend, use_container_width=True)
         else:
             st.info("Tidak ada data untuk ditampilkan.")
@@ -187,8 +198,10 @@ with tab1:
             status_data = filtered_df.groupby('Status Sekolah')['Jumlah'].sum().reset_index()
             fig_pie = px.pie(status_data, values='Jumlah', names='Status Sekolah', 
                              title="Persentase Kasus: Negeri vs Swasta",
-                             color_discrete_sequence=['#2ECC71', '#E74C3C'],
-                             hole=0.4)
+                             color_discrete_sequence=['#4facfe', '#a18cd1'],
+                             hole=0.4,
+                             template='plotly_dark')
+            fig_pie.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
             st.info("Tidak ada data untuk ditampilkan.")
@@ -204,7 +217,9 @@ with tab2:
         
         fig_bar = px.bar(tingkat_data, x='Tingkat Kelas', y='Total Putus Sekolah',
                          title="Total Siswa Putus Sekolah di Setiap Tingkat Kelas",
-                         color='Total Putus Sekolah', color_continuous_scale='Blues')
+                         color='Total Putus Sekolah', color_continuous_scale='PuBu',
+                         template='plotly_dark')
+        fig_bar.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
         st.plotly_chart(fig_bar, use_container_width=True)
     else:
         st.info("Tidak ada data untuk ditampilkan.")
