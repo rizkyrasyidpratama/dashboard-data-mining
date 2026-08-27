@@ -30,7 +30,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# 2. STYLING CSS SLATE DARK (EMPUK DI MATA & KONTRASTING)
+# 2. STYLING CSS FIX (STREAMLIT CLOUD & LOCALHOST COMPATIBLE)
 # =========================================================
 st.markdown(
     """
@@ -41,7 +41,7 @@ st.markdown(
         font-family: 'Plus Jakarta Sans', sans-serif;
     }
     
-    /* Background Utama Soft Dark Slate */
+    /* Background Utama */
     .stApp { 
         background-color: #0f172a !important; 
         color: #f8fafc !important; 
@@ -53,15 +53,25 @@ st.markdown(
         border-right: 1px solid #334155 !important;
     }
 
+    /* PAKSA SEMUA TEKS SIDEBAR TERANG DI STREAMLIT CLOUD & LOCAL */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] h4,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
     [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] .stMarkdown h2,
-    [data-testid="stSidebar"] .stMarkdown h3,
-    [data-testid="stSidebar"] .stMarkdown p,
-    [data-testid="stSidebar"] .stMarkdown span {
+    [data-testid="stSidebar"] div,
+    [data-testid="stSidebar"] small,
+    [data-testid="stSidebar"] .stCaption {
         color: #f8fafc !important;
     }
 
-    /* Selectbox Style Adjustment */
+    [data-testid="stSidebar"] .stCaption p {
+        color: #94a3b8 !important;
+    }
+
+    /* Selectbox Styling Fix */
     div[data-baseweb="select"] > div {
         background-color: #0f172a !important;
         border-color: #334155 !important;
@@ -80,14 +90,14 @@ st.markdown(
         gap: 0.8rem;
     }
     .sidebar-brand-title {
-        color: #38bdf8;
+        color: #38bdf8 !important;
         font-size: 0.68rem;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.08em;
     }
     .sidebar-brand-subtitle {
-        color: #ffffff;
+        color: #ffffff !important;
         font-size: 0.95rem;
         font-weight: 700;
         line-height: 1.2;
@@ -124,7 +134,7 @@ st.markdown(
         font-weight: 800 !important;
     }
 
-    /* Kartu Metrik Dark Slate */
+    /* Kartu Metrik */
     .metric-box {
         background: #1e293b;
         border: 1px solid #334155;
@@ -147,7 +157,7 @@ st.markdown(
         margin-top: 0.2rem;
     }
 
-    /* Ranking Card Dark Custom */
+    /* Ranking Card */
     .rank-card {
         background: #1e293b;
         border: 1px solid #334155;
@@ -310,7 +320,6 @@ with tab1:
         if not filtered_df.empty:
             rank_df = filtered_df.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(5)
             
-            # HTML di-string rapat tanpa tab/spasi depan agar tidak dirender sebagai code block oleh Markdown
             rank_items = "".join(
                 f"<div class='rank-item'><span class='rank-name'>{row['Wilayah']}</span><span class='rank-val'>{int(row['Jumlah']):,}</span></div>"
                 for _, row in rank_df.iterrows()
