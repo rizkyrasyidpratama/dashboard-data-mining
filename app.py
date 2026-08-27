@@ -278,7 +278,7 @@ def load_and_prep_data():
         "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
         "baseline_acc": y_train.value_counts(normalize=True).max(),
         "cm": confusion_matrix(y_test, y_pred, labels=["Rendah", "Sedang", "Tinggi"]),
-        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=False),
+        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=True),
         "y_test_count": len(y_test),
         "y_train_count": len(y_train)
     }
@@ -611,7 +611,13 @@ elif menu == "🌲 Random Forest Model":
         fig_fi.update_layout(
             height=360, font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Fitur", fixedrange=True),
+            yaxis=dict(
+                gridcolor="#334155", 
+                title="Fitur", 
+                fixedrange=True,
+                categoryorder="array",
+                categoryarray=fi_df["Fitur"].tolist()
+            ),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             coloraxis_showscale=False
         )
