@@ -87,7 +87,10 @@ st.markdown("""
 # Load Data
 @st.cache_data
 def load_data():
-    file_path = "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv"
+    file_path = os.path.join(
+        BASE_DIR,
+        "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv",
+    )
     try:
         df = pd.read_csv(file_path)
         return df
