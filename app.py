@@ -610,6 +610,17 @@ elif menu == "🌲 Random Forest Model":
 
     with col_rf2:
         st.subheader("📊 Feature Importance Random Forest")
+        fitur_rf = [
+            'Periode',
+            'Proporsi_II_Lag1',
+            'Proporsi_III_Lag1',
+            'Proporsi_I_Lag1',
+            'Proporsi_IV_Lag1',
+            'Proporsi_V_Lag1',
+            'Status_Encoded',
+            'Proporsi_VI_Lag1',
+            'Jumlah_Lag1'
+        ]
         fi_df = m["feature_importances"].reset_index()
         fi_df.columns = ["Fitur", "Importance"]
         
@@ -625,7 +636,7 @@ elif menu == "🌲 Random Forest Model":
                 title="Fitur", 
                 fixedrange=True,
                 categoryorder="array",
-                categoryarray=fi_df["Fitur"].tolist(),
+                categoryarray=fitur_rf,
                 autorange="reversed"
             ),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
