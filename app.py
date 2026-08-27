@@ -135,7 +135,7 @@ st.markdown(
 )
 
 # =========================================================
-# 2. DATA LOAD & PREPROCESSING SESUAI GOOGLE COLAB
+# 2. DATA LOAD & PREPROCESSING PERSISI TINGGI
 # =========================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(
@@ -155,18 +155,22 @@ def get_image_base64(path):
 @st.cache_data
 def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None
     
+    # Standard read
     df = pd.read_csv(DATA_PATH)
     
+    # Strip space pada nama kolom
+    df.columns = [c.strip() for c in df.columns]
+
     for col in LEVEL_COLS + ["Jumlah"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
     # ---------------------------------------------------------
-    # PERSAPAN DATA K-MEANS (Sesuai Bagian 3.9 & 5 Colab)
+    # K-MEANS ENGINE (Exact Replicated)
     # ---------------------------------------------------------
-    df_kmeans_tahunan = df.groupby(['Periode', 'Kode Kota/Kab', 'Kota/Kab']).agg({
+    df_kmeans_tahunan = df.groupby(['Periode', 'Kode Kota/Kab', 'Kota/Kab'], as_index=False).agg({
         'Tingkat - I': 'sum',
         'Tingkat - II': 'sum',
         'Tingkat - III': 'sum',
@@ -174,7 +178,7 @@ def load_and_prep_data():
         'Tingkat - V': 'sum',
         'Tingkat - VI': 'sum',
         'Jumlah': 'sum'
-    }).reset_index()
+    })
 
     for romawi in ROMAWI_LIST:
         df_kmeans_tahunan[f'Proporsi_{romawi}'] = np.where(
@@ -183,7 +187,7 @@ def load_and_prep_data():
             0
         )
 
-    kmeans_data = df_kmeans_tahunan.groupby('Kode Kota/Kab').agg({
+    kmeans_data = df_kmeans_tahunan.groupby('Kode Kota/Kab', as_index=False).agg({
         'Proporsi_I': 'mean',
         'Proporsi_II': 'mean',
         'Proporsi_III': 'mean',
@@ -192,17 +196,18 @@ def load_and_prep_data():
         'Proporsi_VI': 'mean',
         'Jumlah': 'mean',
         'Kota/Kab': 'first'
-    }).reset_index()
+    })
 
     fitur_kmeans = ['Proporsi_I', 'Proporsi_II', 'Proporsi_III', 'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI', 'Jumlah']
     
     scaler_kmeans = StandardScaler()
     X_kmeans_scaled = scaler_kmeans.fit_transform(kmeans_data[fitur_kmeans])
     
+    # K-Means clustering persis Colab (n_init='auto' atau 10)
     kmeans_model = KMeans(n_clusters=3, random_state=42, n_init=10)
     kmeans_data["Cluster_Id"] = kmeans_model.fit_predict(X_kmeans_scaled)
 
-    # Urutkan cluster berdasarkan rata-rata jumlah
+    # Mapping Cluster Label Berdasarkan Mean Jumlah Kasus
     cluster_means = kmeans_data.groupby("Cluster_Id")["Jumlah"].mean().sort_values()
     label_map = {
         cluster_means.index[0]: "Rendah",
@@ -212,13 +217,13 @@ def load_and_prep_data():
     kmeans_data["Cluster"] = kmeans_data["Cluster_Id"].map(label_map)
 
     # ---------------------------------------------------------
-    # PERSIAPAN DATA RANDOM FOREST (Sesuai Bagian 3.1-3.8 Colab)
+    # RANDOM FOREST ENGINE (Exact Replicated)
     # ---------------------------------------------------------
-    df_agregat = df.groupby(['Periode', 'Wilayah', 'Kota/Kab', 'Kode Kota/Kab', 'Status Sekolah']).agg({
+    df_agregat = df.groupby(['Periode', 'Wilayah', 'Kota/Kab', 'Kode Kota/Kab', 'Status Sekolah'], as_index=False).agg({
         'Tingkat - I': 'sum', 'Tingkat - II': 'sum', 'Tingkat - III': 'sum',
         'Tingkat - IV': 'sum', 'Tingkat - V': 'sum', 'Tingkat - VI': 'sum',
         'Jumlah': 'sum'
-    }).reset_index()
+    })
 
     for romawi in ROMAWI_LIST:
         df_agregat[f'Proporsi_{romawi}'] = np.where(
@@ -230,7 +235,7 @@ def load_and_prep_data():
     le_status = LabelEncoder()
     df_agregat['Status_Encoded'] = le_status.fit_transform(df_agregat['Status Sekolah'])
 
-    df_agregat = df_agregat.sort_values(['Kode Kota/Kab', 'Status Sekolah', 'Periode'])
+    df_agregat = df_agregat.sort_values(['Kode Kota/Kab', 'Status Sekolah', 'Periode']).reset_index(drop=True)
     group_cols = ['Kode Kota/Kab', 'Status Sekolah']
 
     df_agregat['Jumlah_Lag1'] = df_agregat.groupby(group_cols)['Jumlah'].shift(1)
@@ -241,7 +246,6 @@ def load_and_prep_data():
     
     df_rf = df_agregat[df_agregat['Selisih_Tahun'] == 1].copy()
 
-    # Kategori Target (Berdasarkan Quantile dari Train)
     all_years = sorted(df_rf['Periode'].unique())
     tahun_test = all_years[-1] # 2024
     
@@ -281,19 +285,21 @@ def load_and_prep_data():
         "f1": f1_score(y_test, y_pred, average="weighted"),
         "baseline_acc": y_train.value_counts(normalize=True).max(),
         "cm": confusion_matrix(y_test, y_pred, labels=["Rendah", "Sedang", "Tinggi"]),
-        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=True)
+        "feature_importances": pd.Series(rf_model.feature_importances_, index=fitur_rf).sort_values(ascending=True),
+        "y_test_count": len(y_test),
+        "y_train_count": len(y_train)
     }
 
-    return df, kmeans_data, scaler_kmeans, kmeans_model, rf_model, rf_metrics, le_status
+    return df, kmeans_data, scaler_kmeans, kmeans_model, rf_model, rf_metrics, le_status, df_rf
 
-df_raw, df_kmeans, scaler_kmeans_obj, kmeans_obj, rf_model_obj, rf_results, le_status_obj = load_and_prep_data()
+df_raw, df_kmeans, scaler_kmeans_obj, kmeans_obj, rf_model_obj, rf_results, le_status_obj, df_rf_debug = load_and_prep_data()
 
 if df_raw is None:
     st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia di folder utama.")
     st.stop()
 
 # =========================================================
-# 3. SIDEBAR CUSTOM NAVIGATION & LOGO HEADERS
+# 3. SIDEBAR NAVIGATION & LOGO HEADERS
 # =========================================================
 logo_b64 = get_image_base64(LOGO_PATH)
 
@@ -330,19 +336,18 @@ with st.sidebar:
             "📊 Exploratory Analysis",
             "🧩 K-Means Clustering",
             "🌲 Random Forest Model",
-            "🔮 Predictive Simulation"
+            "🔮 Predictive Simulation",
+            "🔍 Debug & Colab Alignment"
         ],
         label_visibility="collapsed"
     )
 
     st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
-    
     st.markdown(
         """
         <div style="background: rgba(15, 23, 42, 0.6); padding: 0.9rem; border-radius: 8px; border: 1px dashed #334155;">
             <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">SYSTEM STATUS</div>
-            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Fully Operational</div>
-            <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.3rem;">Engine: Scikit-Learn v1.2+</div>
+            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Fully Synchronized</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -538,7 +543,7 @@ elif menu == "🧩 K-Means Clustering":
     with tab_c2:
         st.subheader("Visualisasi Proyeksi 2D PCA")
         
-        pca = PCA(n_components=2)
+        pca = PCA(n_components=2, random_state=42)
         pca_coords = pca.fit_transform(X_sc)
         df_pca = df_kmeans.copy()
         df_pca["PC1"] = pca_coords[:, 0]
@@ -685,3 +690,28 @@ elif menu == "🔮 Predictive Simulation":
             """,
             unsafe_allow_html=True
         )
+
+# =========================================================
+# HALAMAN 6: DEBUG & COLAB ALIGNMENT (PENELUSURAN PERBEDAAN)
+# =========================================================
+elif menu == "🔍 Debug & Colab Alignment":
+    st.title("Pemeriksaan Presisi & Alignment Colab")
+    st.warning("Panel ini menampilkan struktur persis yang diproses oleh Streamlit untuk memverifikasi perbedaannya dengan Colab.")
+    
+    st.subheader("1. Jumlah Data Per Baris")
+    st.write(f"- Total Raw Dataset: `{len(df_raw)}` baris")
+    st.write(f"- Total Kab/Kota K-Means: `{len(df_kmeans)}` baris")
+    st.write(f"- Total Samples Random Forest: `{len(df_rf_debug)}` baris")
+    st.write(f"- Train Samples: `{rf_results['y_train_count']}` baris | Test Samples (2024): `{rf_results['y_test_count']}` baris")
+    
+    st.subheader("2. Sampel Data K-Means (5 Baris Pertama)")
+    st.dataframe(df_kmeans.head(), use_container_width=True)
+    
+    st.subheader("3. Matrix Hasil Random Forest")
+    st.json({
+        "Accuracy": rf_results['acc'],
+        "Precision": rf_results['prec'],
+        "Recall": rf_results['rec'],
+        "F1-Score": rf_results['f1'],
+        "Confusion Matrix": rf_results['cm'].tolist()
+    })
