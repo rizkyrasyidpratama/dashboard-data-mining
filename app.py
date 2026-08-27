@@ -1,187 +1,92 @@
 import base64
 import os
+import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-# =========================================================
-# 1. SETUP PATH & LOGO BASE64
-# =========================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(
-    BASE_DIR,
-    "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv",
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    calinski_harabasz_score,
+    confusion_matrix,
+    davies_bouldin_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    silhouette_score,
 )
-LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
-LEVEL_COLUMNS = [f"Tingkat - {level}" for level in ["I", "II", "III", "IV", "V", "VI"]]
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
-def get_image_base64(path):
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
-    return ""
-
-LOGO_BASE64 = get_image_base64(LOGO_PATH)
-
+# =========================================================
+# 1. KONFIGURASI HALAMAN & THEME STYLING
+# =========================================================
 st.set_page_config(
-    page_title="Dashboard Data Mining - Putus Sekolah",
+    page_title="Data Mining Project Demo - Putus Sekolah",
     page_icon="🎓",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# =========================================================
-# 2. STYLING CSS FIX (STREAMLIT CLOUD & LOCALHOST COMPATIBLE)
-# =========================================================
 st.markdown(
     """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    
-    /* Background Utama */
-    .stApp { 
+    html, body, [data-testid="stAppViewContainer"] {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
         background-color: #0f172a !important; 
         color: #f8fafc !important; 
     }
 
-    /* Sidebar Dark Slate */
-    [data-testid="stSidebar"] {
-        background-color: #1e293b !important;
-        border-right: 1px solid #334155 !important;
-    }
+    [data-testid="stHeader"] { background-color: #0f172a !important; }
+    [data-testid="stSidebar"] { background-color: #1e293b !important; border-right: 1px solid #334155 !important; }
 
-    /* PAKSA SEMUA TEKS SIDEBAR TERANG DI STREAMLIT CLOUD & LOCAL */
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] h4,
-    [data-testid="stSidebar"] p,
-    [data-testid="stSidebar"] span,
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] div,
-    [data-testid="stSidebar"] small,
-    [data-testid="stSidebar"] .stCaption {
-        color: #f8fafc !important;
-    }
+    /* Text Colors */
+    [data-testid="stAppViewContainer"] h1, [data-testid="stAppViewContainer"] h2, 
+    [data-testid="stAppViewContainer"] h3, [data-testid="stAppViewContainer"] h4, 
+    [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] span, 
+    [data-testid="stAppViewContainer"] label { color: #f8fafc !important; }
 
-    [data-testid="stSidebar"] .stCaption p {
-        color: #94a3b8 !important;
-    }
+    [data-testid="stSidebar"] * { color: #f8fafc !important; }
 
-    /* Selectbox Styling Fix */
-    div[data-baseweb="select"] > div {
+    /* Selectbox & Input Customization */
+    div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         background-color: #0f172a !important;
         border-color: #334155 !important;
         color: #ffffff !important;
     }
+    div[data-baseweb="select"] *, div[data-baseweb="input"] * { color: #ffffff !important; }
 
-    /* Brand Card Sidebar */
-    .sidebar-brand-card {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 1.2rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.8rem;
-    }
-    .sidebar-brand-title {
-        color: #38bdf8 !important;
-        font-size: 0.68rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-    }
-    .sidebar-brand-subtitle {
-        color: #ffffff !important;
-        font-size: 0.95rem;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-
-    /* Tab Header Custom Fix */
-    .stTabs [data-baseweb="tab"] p {
-        color: #94a3b8 !important;
-        font-weight: 700 !important;
-        font-size: 0.95rem !important;
-    }
-    .stTabs [aria-selected="true"][data-baseweb="tab"] p {
-        color: #38bdf8 !important;
-    }
-
-    /* Hero Banner */
-    .hero-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
-        padding: 2rem 2.2rem;
-        border-radius: 14px;
-        color: #ffffff;
-        margin-bottom: 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-    }
-    .hero-title {
-        color: #ffffff !important;
-        font-size: 2.1rem !important;
-        line-height: 1.2 !important;
-        margin: 0.2rem 0 0.4rem 0;
-        font-weight: 800 !important;
-    }
-
-    /* Kartu Metrik */
+    /* Metric Cards Styling */
     .metric-box {
         background: #1e293b;
         border: 1px solid #334155;
         border-left: 4px solid #38bdf8;
         border-radius: 10px;
-        padding: 1rem 1.2rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        padding: 1.1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    .metric-label {
-        color: #94a3b8;
-        font-size: 0.72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .metric-num {
-        color: #ffffff;
-        font-size: 1.75rem;
-        font-weight: 800;
-        margin-top: 0.2rem;
-    }
+    .metric-label { color: #94a3b8 !important; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .metric-num { color: #ffffff !important; font-size: 1.8rem; font-weight: 800; margin-top: 0.2rem; }
+    .metric-sub { color: #38bdf8 !important; font-size: 0.8rem; font-weight: 600; }
 
-    /* Ranking Card */
-    .rank-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        padding: 0.5rem 1rem;
+    /* Prediction Result Badge */
+    .pred-card-rendah {
+        background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e;
+        border-radius: 14px; padding: 2rem; text-align: center; color: #4ade80 !important;
     }
-    .rank-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.75rem 0;
-        border-bottom: 1px solid #334155;
-        font-size: 0.85rem;
+    .pred-card-sedang {
+        background: rgba(234, 179, 8, 0.15); border: 2px solid #eab308;
+        border-radius: 14px; padding: 2rem; text-align: center; color: #fde047 !important;
     }
-    .rank-item:last-child {
-        border-bottom: none;
-    }
-    .rank-name {
-        font-weight: 700;
-        color: #f1f5f9;
-    }
-    .rank-val {
-        font-weight: 800;
-        color: #38bdf8;
+    .pred-card-tinggi {
+        background: rgba(239, 68, 68, 0.15); border: 2px solid #ef4444;
+        border-radius: 14px; padding: 2rem; text-align: center; color: #fca5a5 !important;
     }
     </style>
     """,
@@ -189,165 +94,410 @@ st.markdown(
 )
 
 # =========================================================
-# 3. LOAD DATASET
+# 2. DATA LOAD & PREPROCESSING CACHE
 # =========================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(
+    BASE_DIR,
+    "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv",
+)
+LEVEL_COLS = [f"Tingkat - {lvl}" for lvl in ["I", "II", "III", "IV", "V", "VI"]]
+
 @st.cache_data
-def load_data():
+def load_and_prep_data():
     if not os.path.exists(DATA_PATH):
-        return pd.DataFrame()
-    try:
-        return pd.read_csv(DATA_PATH)
-    except Exception:
-        return pd.DataFrame()
+        return None, None, None, None, None, None
+    
+    df = pd.read_csv(DATA_PATH)
+    
+    # Cleaning Numerical Columns
+    for col in LEVEL_COLS + ["Jumlah"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            
+    # Feature columns for Clustering & Modeling
+    feature_cols = [c for c in LEVEL_COLS if c in df.columns]
+    
+    # 1. K-MEANS CLUSTERING (K=3)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(df[feature_cols])
+    
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+    df["Cluster_Id"] = kmeans.fit_predict(X_scaled)
+    
+    # Map Cluster ID to Human Label based on mean Jumlah
+    cluster_means = df.groupby("Cluster_Id")["Jumlah"].mean().sort_values()
+    label_map = {
+        cluster_means.index[0]: "Rendah",
+        cluster_means.index[1]: "Sedang",
+        cluster_means.index[2]: "Tinggi"
+    }
+    df["Cluster"] = df["Cluster_Id"].map(label_map)
+    
+    # 2. RANDOM FOREST CLASSIFICATION
+    X = df[feature_cols]
+    y = df["Cluster"]
+    
+    # Chronological or Stratified Train-Test Split (Testing year simulation)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_model.fit(X_train, y_train)
+    
+    y_pred = rf_model.predict(X_test)
+    
+    # Metrics
+    rf_metrics = {
+        "acc": accuracy_score(y_test, y_pred),
+        "prec": precision_score(y_test, y_pred, average="weighted"),
+        "rec": recall_score(y_test, y_pred, average="weighted"),
+        "f1": f1_score(y_test, y_pred, average="weighted"),
+        "baseline_acc": y_train.value_counts(normalize=True).max(),
+        "cm": confusion_matrix(y_test, y_pred, labels=["Rendah", "Sedang", "Tinggi"]),
+        "feature_importances": pd.Series(rf_model.feature_importances_, index=feature_cols).sort_values(ascending=True)
+    }
+    
+    return df, feature_cols, scaler, kmeans, rf_model, rf_metrics
 
-df = load_data()
+df_data, FEATURE_COLS, scaler_obj, kmeans_obj, rf_model_obj, rf_results = load_and_prep_data()
 
-if df.empty:
-    uploaded_file = st.file_uploader("Upload CSV Dataset", type=["csv"])
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-    else:
-        st.stop()
-
-logo_html_hero = f'<img src="data:image/png;base64,{LOGO_BASE64}" style="max-height: 85px; max-width: 180px; object-fit: contain; filter: brightness(0) invert(1);"/>' if LOGO_BASE64 else '<div style="font-size: 3rem;">🎓</div>'
-logo_html_sidebar = f'<img src="data:image/png;base64,{LOGO_BASE64}" style="max-height: 45px; max-width: 45px; object-fit: contain; filter: brightness(0) invert(1);"/>' if LOGO_BASE64 else '<div style="font-size: 1.8rem;">🎓</div>'
+if df_data is None:
+    st.error(f"Dataset tidak ditemukan di path: `{DATA_PATH}`. Pastikan file CSV tersedia.")
+    st.stop()
 
 # =========================================================
-# 4. SIDEBAR
+# 3. SIDEBAR NAVIGATION
 # =========================================================
 with st.sidebar:
-    st.markdown(
-        f"""
-        <div class='sidebar-brand-card'>
-            {logo_html_sidebar}
-            <div>
-                <div class='sidebar-brand-title'>PROYEK MATA KULIAH</div>
-                <div class='sidebar-brand-subtitle'>Data Mining & Eksplorasi</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("⚙️ Control Panel Filter")
-
-    years = ["Semua Tahun"] + (sorted(df["Periode"].unique().tolist()) if "Periode" in df.columns else [])
-    selected_year = st.selectbox("Periode Tahun", years)
-
-    statuses = ["Semua Status"] + (sorted(df["Status Sekolah"].dropna().unique().tolist()) if "Status Sekolah" in df.columns else [])
-    selected_status = st.selectbox("Status Sekolah", statuses)
-
-    regions = ["Semua Wilayah"] + (sorted(df["Wilayah"].dropna().unique().tolist()) if "Wilayah" in df.columns else [])
-    selected_region = st.selectbox("Cakupan Wilayah", regions)
-
+    st.markdown("### 🎓 Data Mining Project")
+    st.caption("Eksplorasi & Prediksi Putus Sekolah SD/MI")
     st.markdown("---")
-    st.caption("Visualisasi Data Mining • SD/MI Sederajat")
+    
+    menu = st.radio(
+        "Navigasi Halaman:",
+        [
+            "🏠 Dashboard",
+            "📊 Exploratory Analysis",
+            "🧩 K-Means Clustering",
+            "🌲 Random Forest",
+            "🔮 Prediction"
+        ]
+    )
+    st.markdown("---")
+    st.caption("Visualisasi Presentasi Dosen • v2.0")
 
-# Filter Dataframe
-filtered_df = df.copy()
-if selected_year != "Semua Tahun":
-    filtered_df = filtered_df[filtered_df["Periode"] == selected_year]
-if selected_status != "Semua Status":
-    filtered_df = filtered_df[filtered_df["Status Sekolah"] == selected_status]
-if selected_region != "Semua Wilayah":
-    filtered_df = filtered_df[filtered_df["Wilayah"] == selected_region]
-
-# =========================================================
-# 5. HEADER BANNER & METRICS
-# =========================================================
-st.markdown(
-    f"""
-    <div class='hero-banner'>
-        <div>
-            <span style="color: #38bdf8; font-weight: 800; text-transform: uppercase; font-size: 0.75rem;">Hasil Analisis Data Mining</span>
-            <div class='hero-title'>Visualisasi Peserta Didik Putus Sekolah</div>
-            <p style="color: #94a3b8; margin: 0; font-size: 0.9rem;">Dashboard eksplorasi pola angka putus sekolah tingkat SD/MI berdasarkan wilayah, status sekolah, dan jenjang kelas.</p>
-        </div>
-        <div style="padding-left: 1.5rem;">
-            {logo_html_hero}
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.info(f"**FILTER AKTIF:** Tahun ({selected_year}) • Status ({selected_status}) • Wilayah ({selected_region})")
-
-c1, c2, c3, c4 = st.columns(4)
-total_cases = int(filtered_df["Jumlah"].sum()) if "Jumlah" in filtered_df.columns else 0
-avg_cases = filtered_df["Jumlah"].mean() if "Jumlah" in filtered_df.columns and not filtered_df.empty else 0
-
-with c1:
-    st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL KASUS</div><div class='metric-num'>{total_cases:,}</div></div>", unsafe_allow_html=True)
-with c2:
-    st.markdown(f"<div class='metric-box'><div class='metric-label'>BARIS TERPILIH</div><div class='metric-num'>{len(filtered_df):,}</div></div>", unsafe_allow_html=True)
-with c3:
-    st.markdown(f"<div class='metric-box'><div class='metric-label'>RATA-RATA PER AREA</div><div class='metric-num'>{avg_cases:,.1f}</div></div>", unsafe_allow_html=True)
-with c4:
-    st.markdown(f"<div class='metric-box'><div class='metric-label'>WILAYAH TERCAKUP</div><div class='metric-num'>{filtered_df['Wilayah'].nunique() if 'Wilayah' in filtered_df.columns else 0}</div></div>", unsafe_allow_html=True)
-
-st.write("")
-
-NO_ZOOM = {'displayModeBar': False, 'scrollZoom': False}
+NO_ZOOM = {'displayModeBar': False}
 
 # =========================================================
-# 6. TAB CONTENT
+# HALAMAN 1: 🏠 DASHBOARD
 # =========================================================
-tab1, tab2, tab3 = st.tabs(["📊 Gambaran Utama", "🏫 Profil Tingkat Kelas", "📑 Eksplorasi Data"])
+if menu == "🏠 Dashboard":
+    st.title("🏠 Executive Summary Dashboard")
+    st.markdown("Ringkasan data utama tingkat nasional angka putus sekolah peserta didik SD/MI.")
+    st.write("")
+    
+    # Metric Row
+    c1, c2, c3, c4, c5 = st.columns(5)
+    total_records = len(df_data)
+    total_prov = df_data["Wilayah"].nunique() if "Wilayah" in df_data.columns else 0
+    periode_range = f"{df_data['Periode'].min()} - {df_data['Periode'].max()}" if "Periode" in df_data.columns else "-"
+    total_cases = int(df_data["Jumlah"].sum())
+    
+    with c1:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL REKORD DATA</div><div class='metric-num'>{total_records:,}</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>JUMLAH WILAYAH</div><div class='metric-num'>{total_prov}</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>PERIODE DATA</div><div class='metric-num'>{periode_range}</div></div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL KASUS</div><div class='metric-num'>{total_cases:,}</div></div>", unsafe_allow_html=True)
+    with c5:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>RF TEST EVALUASI</div><div class='metric-num'>20% Data</div></div>", unsafe_allow_html=True)
 
-with tab1:
-    col_graph, col_rank = st.columns([2, 1], gap="large")
+    st.write("")
+    st.write("")
 
-    with col_graph:
-        st.subheader("Tren Pergerakan Kasus")
-        if not filtered_df.empty:
-            t_data = filtered_df.groupby("Periode", as_index=False)["Jumlah"].sum()
-            fig_trend = px.line(t_data, x="Periode", y="Jumlah", markers=True)
-            fig_trend.update_traces(line_color="#38bdf8", line_width=3)
+    col_chart1, col_chart2 = st.columns([1.2, 1], gap="large")
+
+    with col_chart1:
+        st.subheader("📈 Tren Kasus Putus Sekolah Berdasarkan Tahun")
+        if "Periode" in df_data.columns:
+            trend_df = df_data.groupby("Periode", as_index=False)["Jumlah"].sum()
+            fig_trend = px.line(trend_df, x="Periode", y="Jumlah", markers=True)
+            fig_trend.update_traces(line_color="#38bdf8", line_width=3, marker_size=8)
             fig_trend.update_layout(
-                height=340,
-                font=dict(color="#94a3b8"),
-                xaxis=dict(fixedrange=True, title=None, dtick=1, gridcolor="#334155"),
-                yaxis=dict(fixedrange=True, title="Jumlah Siswa", gridcolor="#334155"),
-                margin=dict(l=10, r=10, t=10, b=10),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
+                height=380, font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", dtick=1), yaxis=dict(gridcolor="#334155", title="Jumlah Siswa"),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=10, r=10, t=10, b=10)
             )
             st.plotly_chart(fig_trend, use_container_width=True, config=NO_ZOOM)
 
-    with col_rank:
-        st.subheader("Ranking Wilayah Tertinggi")
-        if not filtered_df.empty:
-            rank_df = filtered_df.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(5)
-            
-            rank_items = "".join(
-                f"<div class='rank-item'><span class='rank-name'>{row['Wilayah']}</span><span class='rank-val'>{int(row['Jumlah']):,}</span></div>"
-                for _, row in rank_df.iterrows()
-            )
-            rank_html = f"<div class='rank-card'>{rank_items}</div>"
-            st.markdown(rank_html, unsafe_allow_html=True)
-
-with tab2:
-    st.subheader("Distribusi Berdasarkan Kelas (I - VI)")
-    avail_levels = [c for c in LEVEL_COLUMNS if c in filtered_df.columns]
-    if avail_levels and not filtered_df.empty:
-        l_data = filtered_df[avail_levels].sum().reset_index()
-        l_data.columns = ["Kelas", "Jumlah"]
-        l_data["Kelas"] = l_data["Kelas"].str.replace("Tingkat - ", "Kelas ", regex=False)
-        
-        fig_bar = px.bar(l_data, x="Kelas", y="Jumlah", text_auto=True)
-        fig_bar.update_traces(marker_color="#38bdf8")
-        fig_bar.update_layout(
-            height=380,
-            font=dict(color="#94a3b8"),
-            xaxis=dict(fixedrange=True, gridcolor="#334155"),
-            yaxis=dict(fixedrange=True, gridcolor="#334155"),
-            margin=dict(l=10, r=10, t=10, b=10),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+    with col_chart2:
+        st.subheader("🏆 Top 10 Wilayah Kasus Tertinggi")
+        top10_df = df_data.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
+        fig_top = px.bar(top10_df, x="Jumlah", y="Wilayah", orientation="h", text_auto=",d")
+        fig_top.update_traces(marker_color="#38bdf8")
+        fig_top.update_layout(
+            height=380, font=dict(color="#f8fafc"),
+            yaxis=dict(autorange="reversed", gridcolor="#334155", title=None),
+            xaxis=dict(gridcolor="#334155", title="Total Siswa"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(l=10, r=10, t=10, b=10)
         )
-        st.plotly_chart(fig_bar, use_container_width=True, config=NO_ZOOM)
+        st.plotly_chart(fig_top, use_container_width=True, config=NO_ZOOM)
 
-with tab3:
-    st.subheader("Tabel Raw Data")
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+# =========================================================
+# HALAMAN 2: 📊 EXPLORATORY ANALYSIS
+# =========================================================
+elif menu == "📊 Exploratory Analysis":
+    st.title("📊 Exploratory Data Analysis (EDA)")
+    st.markdown("Eksplorasi rinci karakteristik data berdasarkan jenjang kelas, status sekolah, dan korelasi antar fitur.")
+    
+    # Filter Bar
+    c_f1, c_f2 = st.columns(2)
+    with c_f1:
+        years = ["Semua Tahun"] + sorted(df_data["Periode"].unique().tolist()) if "Periode" in df_data.columns else ["Semua"]
+        sel_year = st.selectbox("Filter Tahun Periode:", years)
+    with c_f2:
+        regions = ["Semua Wilayah"] + sorted(df_data["Wilayah"].unique().tolist()) if "Wilayah" in df_data.columns else ["Semua"]
+        sel_region = st.selectbox("Filter Wilayah / Provinsi:", regions)
+
+    # Filter Application
+    filtered_eda = df_data.copy()
+    if sel_year != "Semua Tahun":
+        filtered_eda = filtered_eda[filtered_eda["Periode"] == sel_year]
+    if sel_region != "Semua Wilayah":
+        filtered_eda = filtered_eda[filtered_eda["Wilayah"] == sel_region]
+
+    st.write("")
+    
+    col_e1, col_e2 = st.columns(2, gap="large")
+
+    with col_e1:
+        st.subheader("🏫 Distribution Putus Sekolah per Kelas (I - VI)")
+        class_sums = filtered_eda[FEATURE_COLS].sum().reset_index()
+        class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
+        class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
+        
+        fig_class = px.bar(class_sums, x="Tingkat Kelas", y="Jumlah Siswa", text_auto=",d", color_discrete_sequence=["#38bdf8"])
+        fig_class.update_layout(
+            height=360, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
+        )
+        st.plotly_chart(fig_class, use_container_width=True, config=NO_ZOOM)
+
+    with col_e2:
+        st.subheader("🏫 Perbandingan Status Sekolah (Negeri vs Swasta)")
+        if "Status Sekolah" in filtered_eda.columns:
+            status_df = filtered_eda.groupby("Status Sekolah", as_index=False)["Jumlah"].sum()
+            fig_status = px.pie(status_df, names="Status Sekolah", values="Jumlah", hole=0.4, color_discrete_sequence=["#38bdf8", "#818cf8"])
+            fig_status.update_layout(
+                height=360, font=dict(color="#f8fafc"),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
+            )
+            st.plotly_chart(fig_status, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    st.subheader("🔥 Heatmap Korelasi Fitur")
+    corr_matrix = filtered_eda[FEATURE_COLS + ["Jumlah"]].corr()
+    fig_corr = px.imshow(
+        corr_matrix, text_auto=".2f", aspect="auto",
+        color_continuous_scale="Blues"
+    )
+    fig_corr.update_layout(
+        height=400, font=dict(color="#f8fafc"),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig_corr, use_container_width=True, config=NO_ZOOM)
+
+# =========================================================
+# HALAMAN 3: 🧩 K-MEANS CLUSTERING
+# =========================================================
+elif menu == "🧩 K-Means Clustering":
+    st.title("🧩 K-Means Clustering Analysis")
+    st.markdown("Pengelompokan pola angka putus sekolah wilayah berdasarkan analisis *Unsupervised Learning*.")
+    
+    scaler_tmp = StandardScaler()
+    X_sc = scaler_tmp.fit_transform(df_data[FEATURE_COLS])
+    
+    # Compute Evaluation Metrics
+    sil = silhouette_score(X_sc, df_data["Cluster_Id"])
+    ch = calinski_harabasz_score(X_sc, df_data["Cluster_Id"])
+    db = davies_bouldin_score(X_sc, df_data["Cluster_Id"])
+
+    c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+    with c_m1:
+        st.markdown("<div class='metric-box'><div class='metric-label'>OPTIMAL K</div><div class='metric-num'>K = 3</div><div class='metric-sub'>Rendah, Sedang, Tinggi</div></div>", unsafe_allow_html=True)
+    with c_m2:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>SILHOUETTE SCORE</div><div class='metric-num'>{sil:.3f}</div><div class='metric-sub'>Struktur Cluster Sangat Baik</div></div>", unsafe_allow_html=True)
+    with c_m3:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>CALINSKI-HARABASZ</div><div class='metric-num'>{ch:,.1f}</div><div class='metric-sub'>Separasi Maksimal</div></div>", unsafe_allow_html=True)
+    with c_m4:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>DAVIES-BOULDIN</div><div class='metric-num'>{db:.3f}</div><div class='metric-sub'>Similaritas Antar Cluster</div></div>", unsafe_allow_html=True)
+
+    st.write("")
+    
+    tab_c1, tab_c2 = st.tabs(["📉 Elbow Method", "🗺️ PCA 2D Cluster Visualizer"])
+    
+    with tab_c1:
+        col_el, col_dist = st.columns([1.2, 1], gap="large")
+        with col_el:
+            st.subheader("Elbow Method (Inertia vs K)")
+            inertias = []
+            K_range = range(2, 7)
+            for k in K_range:
+                km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(X_sc)
+                inertias.append(km.inertia_)
+                
+            fig_elbow = px.line(x=list(K_range), y=inertias, markers=True, labels={"x": "Jumlah Cluster (K)", "y": "Inertia"})
+            fig_elbow.update_traces(line_color="#38bdf8", marker_size=10)
+            fig_elbow.add_vline(x=3, line_dash="dash", line_color="#ef4444", annotation_text="K Optimal = 3")
+            fig_elbow.update_layout(
+                height=350, font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
+            
+        with col_dist:
+            st.subheader("Distribusi Anggota Cluster")
+            dist_df = df_data["Cluster"].value_counts().reset_index()
+            dist_df.columns = ["Cluster", "Jumlah Wilayah"]
+            fig_dist = px.pie(dist_df, names="Cluster", values="Jumlah Wilayah", hole=0.4,
+                              color="Cluster", color_discrete_map={"Rendah": "#22c55e", "Sedang": "#eab308", "Tinggi": "#ef4444"})
+            fig_dist.update_layout(
+                height=350, font=dict(color="#f8fafc"),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_dist, use_container_width=True, config=NO_ZOOM)
+
+    with tab_c2:
+        st.subheader("Visualisasi Proyeksi 2D PCA")
+        st.caption("Catatan: PCA digunakan murni untuk memproyeksikan data ke dalam 2 dimensi visualisasi, bukan untuk proses clustering.")
+        
+        pca = PCA(n_components=2)
+        pca_coords = pca.fit_transform(X_sc)
+        df_pca = df_data.copy()
+        df_pca["PC1"] = pca_coords[:, 0]
+        df_pca["PC2"] = pca_coords[:, 1]
+        
+        fig_pca = px.scatter(
+            df_pca, x="PC1", y="PC2", color="Cluster",
+            hover_data=["Wilayah", "Jumlah"] if "Wilayah" in df_pca.columns else ["Jumlah"],
+            color_discrete_map={"Rendah": "#22c55e", "Sedang": "#eab308", "Tinggi": "#ef4444"}
+        )
+        fig_pca.update_traces(marker=dict(size=9, opacity=0.8))
+        fig_pca.update_layout(
+            height=420, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    st.subheader("📊 Rata-Rata Karakteristik Cluster")
+    cluster_profile = df_data.groupby("Cluster")[FEATURE_COLS + ["Jumlah"]].mean().reindex(["Rendah", "Sedang", "Tinggi"])
+    st.dataframe(cluster_profile.style.format("{:,.1f}"), use_container_width=True)
+
+# =========================================================
+# HALAMAN 4: 🌲 RANDOM FOREST
+# =========================================================
+elif menu == "🌲 Random Forest":
+    st.title("🌲 Random Forest Classification")
+    st.markdown("Evaluasi performa model *Supervised Learning* untuk mengklasifikasikan kategori tingkat kerawanan wilayah.")
+    
+    m = rf_results
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>ACCURACY</div><div class='metric-num'>{m['acc']*100:.1f}%</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>PRECISION</div><div class='metric-num'>{m['prec']*100:.1f}%</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>RECALL</div><div class='metric-num'>{m['rec']*100:.1f}%</div></div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>F1-SCORE</div><div class='metric-num'>{m['f1']*100:.1f}%</div></div>", unsafe_allow_html=True)
+    with c5:
+        imp = (m['acc'] - m['baseline_acc']) * 100
+        st.markdown(f"<div class='metric-box'><div class='metric-label'>AKURASI VS BASELINE</div><div class='metric-num'>+{imp:.1f}%</div></div>", unsafe_allow_html=True)
+
+    st.write("")
+    
+    col_rf1, col_rf2 = st.columns([1, 1.2], gap="large")
+    
+    with col_rf1:
+        st.subheader("📌 Confusion Matrix")
+        labels = ["Rendah", "Sedang", "Tinggi"]
+        fig_cm = px.imshow(
+            m["cm"], x=labels, y=labels, text_auto=True,
+            color_continuous_scale="Blues", labels=dict(x="Prediksi Model", y="Kelas Aktual")
+        )
+        fig_cm.update_layout(
+            height=360, font=dict(color="#f8fafc"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
+
+    with col_rf2:
+        st.subheader("⭐ Feature Importance")
+        fi_df = m["feature_importances"].reset_index()
+        fi_df.columns = ["Fitur", "Importance"]
+        fi_df["Fitur"] = fi_df["Fitur"].str.replace("Tingkat - ", "Kelas ")
+        
+        fig_fi = px.bar(fi_df, x="Importance", y="Fitur", orientation="h", text_auto=".3f", color_discrete_sequence=["#38bdf8"])
+        fig_fi.update_layout(
+            height=360, font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155"), yaxis=dict(gridcolor="#334155", title=None),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
+        st.caption("ℹ️ *Feature importance menunjukkan kontribusi relatif fitur terhadap keputusan klasifikasi model, bukan hubungan sebab-akibat langsung.*")
+
+# =========================================================
+# HALAMAN 5: 🔮 PREDICTION
+# =========================================================
+elif menu == "🔮 Prediction":
+    st.title("🔮 Demo Prediksi Interaktif")
+    st.markdown("Simulasi prediksi kategori tingkat kerawanan wilayah menggunakan model Random Forest yang telah dilatih.")
+    
+    st.write("")
+    
+    with st.form("pred_form"):
+        st.subheader("📝 Input Jumlah Siswa Putus Sekolah per Tingkat Kelas")
+        
+        c_i1, c_i2, c_i3 = st.columns(3)
+        with c_i1:
+            val_k1 = st.number_input("Jumlah Siswa Kelas I", min_value=0, value=150, step=10)
+            val_k2 = st.number_input("Jumlah Siswa Kelas II", min_value=0, value=120, step=10)
+        with c_i2:
+            val_k3 = st.number_input("Jumlah Siswa Kelas III", min_value=0, value=180, step=10)
+            val_k4 = st.number_input("Jumlah Siswa Kelas IV", min_value=0, value=200, step=10)
+        with c_i3:
+            val_k5 = st.number_input("Jumlah Siswa Kelas V", min_value=0, value=210, step=10)
+            val_k6 = st.number_input("Jumlah Siswa Kelas VI", min_value=0, value=90, step=10)
+            
+        st.write("")
+        submit_btn = st.form_submit_button("🔮 PREDICT KATEGORI WILAYAH", use_container_width=True)
+
+    if submit_btn:
+        input_data = pd.DataFrame([[val_k1, val_k2, val_k3, val_k4, val_k5, val_k6]], columns=FEATURE_COLS)
+        pred_label = rf_model_obj.predict(input_data)[0]
+        pred_proba = rf_model_obj.predict_proba(input_data)[0]
+        max_proba = max(pred_proba) * 100
+        
+        st.markdown("---")
+        st.subheader("🎯 Hasil Klasifikasi Prediksi")
+        
+        card_class = f"pred-card-{pred_label.lower()}"
+        
+        st.markdown(
+            f"""
+            <div class='{card_class}'>
+                <h3 style='margin:0; font-size:1.1rem; opacity:0.9;'>KATEGORI TINGKAT KERAWANAN</h3>
+                <h1 style='font-size: 3.5rem; font-weight: 800; margin: 0.5rem 0;'>{pred_label.upper()}</h1>
+                <p style='margin:0; font-size:1rem; font-weight:600;'>Tingkat Keyakinan Model (Confidence): {max_proba:.1f}%</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
