@@ -214,7 +214,6 @@ if df_data is None:
 # =========================================================
 logo_b64 = get_image_base64(LOGO_PATH)
 
-# Logo dalam container putih ukuran besar (64px x 64px)
 logo_img_html = (
     f'<div style="background-color: #ffffff; padding: 8px; border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; flex-shrink: 0; margin-right: 14px;">'
     f'<img src="data:image/png;base64,{logo_b64}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />'
@@ -241,6 +240,7 @@ with st.sidebar:
 
     st.markdown("<p style='font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;'>MAIN MENU</p>", unsafe_allow_html=True)
 
+    # Ikon disisa hanya di sidebar navigation
     menu = st.radio(
         label="Navigasi Utama",
         options=[
@@ -259,7 +259,7 @@ with st.sidebar:
         """
         <div style="background: rgba(15, 23, 42, 0.6); padding: 0.9rem; border-radius: 8px; border: 1px dashed #334155;">
             <div style="font-size: 0.7rem; color: #64748b; font-weight: 600;">SYSTEM STATUS</div>
-            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">⚡ Fully Operational</div>
+            <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 700; margin-top: 0.1rem;">Fully Operational</div>
             <div style="font-size: 0.68rem; color: #94a3b8; margin-top: 0.3rem;">Engine: Scikit-Learn v1.2+</div>
         </div>
         """,
@@ -275,7 +275,7 @@ NO_ZOOM = {
 # HALAMAN 1: OVERVIEW DASHBOARD
 # =========================================================
 if menu == "🏠 Overview Dashboard":
-    st.title("🏠 Executive Summary Dashboard")
+    st.title("Executive Summary Dashboard")
     st.markdown("Ringkasan data utama tingkat nasional angka putus sekolah peserta didik SD/MI.")
     st.write("")
     
@@ -302,7 +302,7 @@ if menu == "🏠 Overview Dashboard":
     col_chart1, col_chart2 = st.columns([1.2, 1], gap="large")
 
     with col_chart1:
-        st.subheader("📈 Tren Kasus Putus Sekolah Berdasarkan Tahun")
+        st.subheader("Tren Kasus Putus Sekolah Berdasarkan Tahun")
         if "Periode" in df_data.columns:
             trend_df = df_data.groupby("Periode", as_index=False)["Jumlah"].sum()
             fig_trend = px.line(trend_df, x="Periode", y="Jumlah", markers=True)
@@ -317,7 +317,7 @@ if menu == "🏠 Overview Dashboard":
             st.plotly_chart(fig_trend, use_container_width=True, config=NO_ZOOM)
 
     with col_chart2:
-        st.subheader("🏆 Top 10 Wilayah Kasus Tertinggi")
+        st.subheader("Top 10 Wilayah Kasus Tertinggi")
         top10_df = df_data.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
         fig_top = px.bar(top10_df, x="Jumlah", y="Wilayah", orientation="h", text_auto=",d")
         fig_top.update_traces(marker_color="#38bdf8")
@@ -334,7 +334,7 @@ if menu == "🏠 Overview Dashboard":
 # HALAMAN 2: EXPLORATORY ANALYSIS
 # =========================================================
 elif menu == "📊 Exploratory Analysis":
-    st.title("📊 Exploratory Data Analysis (EDA)")
+    st.title("Exploratory Data Analysis (EDA)")
     st.markdown("Eksplorasi rinci karakteristik data berdasarkan jenjang kelas, status sekolah, dan korelasi antar fitur.")
     
     c_f1, c_f2 = st.columns(2)
@@ -356,7 +356,7 @@ elif menu == "📊 Exploratory Analysis":
     col_e1, col_e2 = st.columns(2, gap="large")
 
     with col_e1:
-        st.subheader("🏫 Distribusi Putus Sekolah per Kelas (I - VI)")
+        st.subheader("Distribusi Putus Sekolah per Kelas (I - VI)")
         class_sums = filtered_eda[FEATURE_COLS].sum().reset_index()
         class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
         class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
@@ -371,7 +371,7 @@ elif menu == "📊 Exploratory Analysis":
         st.plotly_chart(fig_class, use_container_width=True, config=NO_ZOOM)
 
     with col_e2:
-        st.subheader("🏫 Perbandingan Status Sekolah (Negeri vs Swasta)")
+        st.subheader("Perbandingan Status Sekolah (Negeri vs Swasta)")
         if "Status Sekolah" in filtered_eda.columns:
             status_df = filtered_eda.groupby("Status Sekolah", as_index=False)["Jumlah"].sum()
             fig_status = px.pie(status_df, names="Status Sekolah", values="Jumlah", hole=0.4, color_discrete_sequence=["#38bdf8", "#818cf8"])
@@ -382,7 +382,7 @@ elif menu == "📊 Exploratory Analysis":
             st.plotly_chart(fig_status, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
-    st.subheader("🔥 Heatmap Korelasi Fitur")
+    st.subheader("Heatmap Korelasi Fitur")
     corr_matrix = filtered_eda[FEATURE_COLS + ["Jumlah"]].corr()
     fig_corr = px.imshow(
         corr_matrix, text_auto=".2f", aspect="auto",
@@ -399,7 +399,7 @@ elif menu == "📊 Exploratory Analysis":
 # HALAMAN 3: K-MEANS CLUSTERING
 # =========================================================
 elif menu == "🧩 K-Means Clustering":
-    st.title("🧩 K-Means Clustering Analysis")
+    st.title("K-Means Clustering Analysis")
     st.markdown("Pengelompokan pola angka putus sekolah wilayah berdasarkan analisis Unsupervised Learning.")
     
     scaler_tmp = StandardScaler()
@@ -421,7 +421,7 @@ elif menu == "🧩 K-Means Clustering":
 
     st.write("")
     
-    tab_c1, tab_c2 = st.tabs(["📉 Elbow Method", "🗺️ PCA 2D Visualizer"])
+    tab_c1, tab_c2 = st.tabs(["Elbow Method", "PCA 2D Visualizer"])
     
     with tab_c1:
         col_el, col_dist = st.columns([1.2, 1], gap="large")
@@ -481,7 +481,7 @@ elif menu == "🧩 K-Means Clustering":
         st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
-    st.subheader("📊 Rata-Rata Karakteristik Cluster")
+    st.subheader("Rata-Rata Karakteristik Cluster")
     cluster_profile = df_data.groupby("Cluster")[FEATURE_COLS + ["Jumlah"]].mean().reindex(["Rendah", "Sedang", "Tinggi"])
     st.dataframe(cluster_profile.style.format("{:,.1f}"), use_container_width=True)
 
@@ -489,7 +489,7 @@ elif menu == "🧩 K-Means Clustering":
 # HALAMAN 4: RANDOM FOREST MODEL
 # =========================================================
 elif menu == "🌲 Random Forest Model":
-    st.title("🌲 Random Forest Classification")
+    st.title("Random Forest Classification")
     st.markdown("Evaluasi performa model Supervised Learning untuk mengklasifikasikan kategori tingkat kerawanan wilayah.")
     
     m = rf_results
@@ -511,7 +511,7 @@ elif menu == "🌲 Random Forest Model":
     col_rf1, col_rf2 = st.columns([1, 1.2], gap="large")
     
     with col_rf1:
-        st.subheader("📌 Confusion Matrix")
+        st.subheader("Confusion Matrix")
         labels = ["Rendah", "Sedang", "Tinggi"]
         fig_cm = px.imshow(
             m["cm"], x=labels, y=labels, text_auto=True,
@@ -525,7 +525,7 @@ elif menu == "🌲 Random Forest Model":
         st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
 
     with col_rf2:
-        st.subheader("⭐ Feature Importance")
+        st.subheader("Feature Importance")
         fi_df = m["feature_importances"].reset_index()
         fi_df.columns = ["Fitur", "Importance"]
         fi_df["Fitur"] = fi_df["Fitur"].str.replace("Tingkat - ", "Kelas ")
@@ -538,19 +538,19 @@ elif menu == "🌲 Random Forest Model":
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
-        st.caption("ℹ️ Feature importance menunjukkan kontribusi relatif fitur terhadap keputusan klasifikasi model, bukan hubungan sebab-akibat langsung.")
+        st.caption("Feature importance menunjukkan kontribusi relatif fitur terhadap keputusan klasifikasi model, bukan hubungan sebab-akibat langsung.")
 
 # =========================================================
 # HALAMAN 5: PREDICTIVE SIMULATION
 # =========================================================
 elif menu == "🔮 Predictive Simulation":
-    st.title("🔮 Predictive Simulation")
+    st.title("Predictive Simulation")
     st.markdown("Simulasi prediksi kategori tingkat kerawanan wilayah menggunakan model Random Forest yang telah dilatih.")
     
     st.write("")
     
     with st.form("pred_form"):
-        st.subheader("📝 Input Jumlah Siswa Putus Sekolah per Tingkat Kelas")
+        st.subheader("Input Jumlah Siswa Putus Sekolah per Tingkat Kelas")
         
         c_i1, c_i2, c_i3 = st.columns(3)
         with c_i1:
@@ -564,7 +564,7 @@ elif menu == "🔮 Predictive Simulation":
             val_k6 = st.number_input("Jumlah Siswa Kelas VI", min_value=0, value=90, step=10)
             
         st.write("")
-        submit_btn = st.form_submit_button("🔮 PREDIKSI KATEGORI WILAYAH", use_container_width=True)
+        submit_btn = st.form_submit_button("PREDIKSI KATEGORI WILAYAH", use_container_width=True)
 
     if submit_btn:
         input_data = pd.DataFrame([[val_k1, val_k2, val_k3, val_k4, val_k5, val_k6]], columns=FEATURE_COLS)
@@ -573,7 +573,7 @@ elif menu == "🔮 Predictive Simulation":
         max_proba = max(pred_proba) * 100
         
         st.markdown("---")
-        st.subheader("🎯 Hasil Klasifikasi Prediksi")
+        st.subheader("Hasil Klasifikasi Prediksi")
         
         card_class = f"pred-card-{pred_label.lower()}"
         
