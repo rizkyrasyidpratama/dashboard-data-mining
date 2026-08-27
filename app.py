@@ -610,19 +610,11 @@ elif menu == "🌲 Random Forest Model":
 
     with col_rf2:
         st.subheader("📊 Feature Importance Random Forest")
-        fitur_rf = [
-            'Periode',
-            'Proporsi_II_Lag1',
-            'Proporsi_III_Lag1',
-            'Proporsi_I_Lag1',
-            'Proporsi_IV_Lag1',
-            'Proporsi_V_Lag1',
-            'Status_Encoded',
-            'Proporsi_VI_Lag1',
-            'Jumlah_Lag1'
-        ]
+        
+        # Ambil dan urutkan dataframe feature importance secara descending
         fi_df = m["feature_importances"].reset_index()
         fi_df.columns = ["Fitur", "Importance"]
+        fi_df = fi_df.sort_values(by="Importance", ascending=False)
         
         fig_fi = px.bar(
             fi_df, x="Importance", y="Fitur", orientation="h", 
@@ -632,12 +624,10 @@ elif menu == "🌲 Random Forest Model":
             height=360, font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
             yaxis=dict(
+                autorange="reversed",
                 gridcolor="#334155", 
                 title="Fitur", 
-                fixedrange=True,
-                categoryorder="array",
-                categoryarray=fitur_rf,
-                autorange="reversed"
+                fixedrange=True
             ),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             coloraxis_showscale=False
