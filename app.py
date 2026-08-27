@@ -143,6 +143,7 @@ DATA_PATH = os.path.join(
     BASE_DIR,
     "Dataset - jumlah-peserta-didik-putus-sekolah-menurut-tingkat-tiap-provinsi-2025-semua-wilayah-sd-mi-sederajat-1 - ASC.csv",
 )
+LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
 LEVEL_COLS = [f"Tingkat - {lvl}" for lvl in ["I", "II", "III", "IV", "V", "VI"]]
 
 @st.cache_data
@@ -206,6 +207,11 @@ if df_data is None:
 # 3. SIDEBAR CUSTOM NAVIGATION
 # =========================================================
 with st.sidebar:
+    # MENAMPILKAN LOGO.PNG DARI DIREKTORI LOKAL
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, use_container_width=True)
+        st.write("")
+    
     st.markdown(
         """
         <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 1.2rem; border-radius: 12px; border: 1px solid #334155; margin-bottom: 1.2rem;">
