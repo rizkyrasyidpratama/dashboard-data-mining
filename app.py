@@ -656,7 +656,6 @@ with st.sidebar:
 NO_ZOOM = {'displayModeBar': False, 'scrollZoom': False}
 
 # =========================================================
-# =========================================================
 # HALAMAN 1: OVERVIEW DASHBOARD
 # =========================================================
 if menu == "🏠 Overview Dashboard":
@@ -880,15 +879,15 @@ elif menu == "📊 Exploratory Analysis":
         )
         st.plotly_chart(fig_violin, use_container_width=True, config=NO_ZOOM)
     
-    # GRAFIK 8: Heatmap Korelasi Antar Tingkat
+    # GRAFIK 8: Heatmap Korelasi Antar Tingkat - perbaikan
     with col_heat:
         st.subheader("Heatmap Korelasi Antar Tingkat")
-        corr_tingkat = filtered_eda[LEVEL_COLS].corr()
+        corr_tingkat = filtered_eda[LEVEL_COLS].corr().fillna(0)  # tambah fillna
         fig_corr_tingkat = px.imshow(
-            corr_tingkat, 
-            text_auto=".2f", 
+            corr_tingkat,
+            text_auto=".2f",
             aspect="auto",
-            color_continuous_scale="coolwarm"
+            color_continuous_scale="RdBu"  # ganti coolwarm
         )
         fig_corr_tingkat.update_layout(
             height=360,
@@ -913,7 +912,6 @@ elif menu == "📊 Exploratory Analysis":
     # GRAFIK 9: Top 10 Provinsi Tertinggi
     with col_prov1:
         top10_prov = total_per_provinsi_filtered.head(10)
-        colors_bar = px.colors.sequential.Reds_r
         fig_top10 = px.bar(
             x=top10_prov.values,
             y=top10_prov.index,
@@ -1087,17 +1085,17 @@ elif menu == "📊 Exploratory Analysis":
     st.markdown("---")
     
     # =========================================================
-    # 4.5 HEATMAP KORELASI (Fig 4.5)
+    # 4.5 HEATMAP KORELASI (Fig 4.5) - perbaikan
     # =========================================================
     st.subheader("Heatmap Korelasi Lengkap")
     
     # GRAFIK 16: Heatmap Korelasi Lengkap
-    corr_matrix_filtered = filtered_eda[LEVEL_COLS + ['Jumlah']].corr()
+    corr_matrix_filtered = filtered_eda[LEVEL_COLS + ['Jumlah']].corr().fillna(0)
     fig_corr_full = px.imshow(
         corr_matrix_filtered,
         text_auto=".2f",
         aspect="auto",
-        color_continuous_scale="coolwarm"
+        color_continuous_scale="RdBu"  # ganti coolwarm
     )
     fig_corr_full.update_layout(
         height=400,
@@ -1133,130 +1131,128 @@ elif menu == "🧩 K-Means Clustering":
     tab_c1, tab_c2 = st.tabs(["Metrik Evaluasi Cluster", "PCA 2D Visualizer"])
     
     with tab_c1:
-        col_metrics, col_dist = st.columns([1.2, 1], gap="large")
+        st.subheader("Metrik Evaluasi per k")
         
-        with col_metrics:
-            st.subheader("Metrik Evaluasi per k")
-            
-            # GRAFIK 17-20: 4 Metrik dalam 1 grafik
-            fig_metrics = go.Figure()
-            
-            # 17. Elbow Method (Inertia)
-            fig_metrics.add_trace(go.Scatter(
+        # --- 4 Grafik terpisah dalam 2 baris ---
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # GRAFIK 17: Elbow Method (Inertia)
+            fig_elbow = px.line(
                 x=list(K_range), y=inertia_scores,
-                mode='lines+markers',
-                name='Inertia',
-                line=dict(color='#2E86AB', width=2),
-                marker=dict(size=8, color='#2E86AB')
-            ))
-            
-            # 18. Silhouette Score
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=silhouette_scores,
-                mode='lines+markers',
-                name='Silhouette',
-                line=dict(color='#E74C3C', width=2),
-                marker=dict(size=8, color='#E74C3C'),
-                yaxis='y2'
-            ))
-            
-            # 19. Calinski-Harabasz Score
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=calinski_scores,
-                mode='lines+markers',
-                name='Calinski',
-                line=dict(color='#2ECC71', width=2),
-                marker=dict(size=8, color='#2ECC71'),
-                yaxis='y3'
-            ))
-            
-            # 20. Davies-Bouldin Score
-            fig_metrics.add_trace(go.Scatter(
-                x=list(K_range), y=davies_scores,
-                mode='lines+markers',
-                name='Davies',
-                line=dict(color='#A23B72', width=2),
-                marker=dict(size=8, color='#A23B72'),
-                yaxis='y4'
-            ))
-            
-            fig_metrics.update_layout(
-                height=400,
+                markers=True,
+                labels={"x": "Jumlah Cluster (k)", "y": "Inertia"},
+                color_discrete_sequence=["#2E86AB"]
+            )
+            fig_elbow.update_traces(line_width=2, marker_size=8)
+            fig_elbow.add_vline(
+                x=optimal_k, line_dash="dash", line_color="#ef4444",
+                annotation_text=f"k={optimal_k}", annotation_position="top"
+            )
+            fig_elbow.update_layout(
+                title="Elbow Method (Inertia)",
+                height=300,
                 font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
                 paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(
-                    title="Jumlah Cluster (k)",
-                    gridcolor="#334155",
-                    dtick=1,
-                    fixedrange=True
-                ),
-                yaxis=dict(
-                    title="Inertia",
-                    gridcolor="#334155",
-                    fixedrange=True,
-                    showgrid=False
-                ),
-                yaxis2=dict(
-                    title="Silhouette",
-                    gridcolor="#334155",
-                    fixedrange=True,
-                    overlaying='y',
-                    side='right',
-                    showgrid=False
-                ),
-                yaxis3=dict(
-                    title="Calinski",
-                    gridcolor="#334155",
-                    fixedrange=True,
-                    overlaying='y',
-                    side='right',
-                    showgrid=False,
-                    position=0.85
-                ),
-                yaxis4=dict(
-                    title="Davies",
-                    gridcolor="#334155",
-                    fixedrange=True,
-                    overlaying='y',
-                    side='right',
-                    showgrid=False,
-                    position=0.95
-                ),
-                margin=dict(l=10, r=10, t=10, b=10)
+                plot_bgcolor='rgba(0,0,0,0)'
             )
+            st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
             
-            # Tambahkan vertical line untuk k optimal
-            fig_metrics.add_vline(
-                x=optimal_k,
-                line_dash="dash",
-                line_color="#F1C40F",
-                annotation_text=f"k={optimal_k}",
-                annotation_position="top"
+            # GRAFIK 18: Silhouette Score
+            fig_sil = px.line(
+                x=list(K_range), y=silhouette_scores,
+                markers=True,
+                labels={"x": "Jumlah Cluster (k)", "y": "Silhouette Score"},
+                color_discrete_sequence=["#E74C3C"]
             )
-            
-            st.plotly_chart(fig_metrics, use_container_width=True, config=NO_ZOOM)
-            
-            # Tabel metrik
-            metrics_df = pd.DataFrame({
-                'k': list(K_range),
-                'Inertia': inertia_scores,
-                'Silhouette': silhouette_scores,
-                'Calinski': calinski_scores,
-                'Davies': davies_scores
-            })
-            st.dataframe(metrics_df.style.format({
-                'Inertia': '{:.2f}',
-                'Silhouette': '{:.4f}',
-                'Calinski': '{:.2f}',
-                'Davies': '{:.4f}'
-            }), use_container_width=True)
+            fig_sil.update_traces(line_width=2, marker_size=8)
+            fig_sil.add_vline(
+                x=optimal_k, line_dash="dash", line_color="#ef4444",
+                annotation_text=f"k={optimal_k}", annotation_position="top"
+            )
+            fig_sil.update_layout(
+                title="Silhouette Score (higher is better)",
+                height=300,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_sil, use_container_width=True, config=NO_ZOOM)
         
-        with col_dist:
+        with col2:
+            # GRAFIK 19: Calinski-Harabasz Score
+            fig_cal = px.line(
+                x=list(K_range), y=calinski_scores,
+                markers=True,
+                labels={"x": "Jumlah Cluster (k)", "y": "Calinski-Harabasz Score"},
+                color_discrete_sequence=["#2ECC71"]
+            )
+            fig_cal.update_traces(line_width=2, marker_size=8)
+            fig_cal.add_vline(
+                x=optimal_k, line_dash="dash", line_color="#ef4444",
+                annotation_text=f"k={optimal_k}", annotation_position="top"
+            )
+            fig_cal.update_layout(
+                title="Calinski-Harabasz Score (higher is better)",
+                height=300,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_cal, use_container_width=True, config=NO_ZOOM)
+            
+            # GRAFIK 20: Davies-Bouldin Score
+            fig_dav = px.line(
+                x=list(K_range), y=davies_scores,
+                markers=True,
+                labels={"x": "Jumlah Cluster (k)", "y": "Davies-Bouldin Score"},
+                color_discrete_sequence=["#A23B72"]
+            )
+            fig_dav.update_traces(line_width=2, marker_size=8)
+            fig_dav.add_vline(
+                x=optimal_k, line_dash="dash", line_color="#ef4444",
+                annotation_text=f"k={optimal_k}", annotation_position="top"
+            )
+            fig_dav.update_layout(
+                title="Davies-Bouldin Score (lower is better)",
+                height=300,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", fixedrange=True),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_dav, use_container_width=True, config=NO_ZOOM)
+        
+        # Tabel metrik
+        st.markdown("---")
+        metrics_df = pd.DataFrame({
+            'k': list(K_range),
+            'Inertia': inertia_scores,
+            'Silhouette': silhouette_scores,
+            'Calinski': calinski_scores,
+            'Davies': davies_scores
+        })
+        st.dataframe(metrics_df.style.format({
+            'Inertia': '{:.2f}',
+            'Silhouette': '{:.4f}',
+            'Calinski': '{:.2f}',
+            'Davies': '{:.4f}'
+        }), use_container_width=True)
+        
+        # Distribusi Kluster (GRAFIK 21 & 22) - pindahkan ke bawah atau di tab ini
+        st.markdown("---")
+        col_dist1, col_dist2 = st.columns(2)
+        
+        with col_dist1:
             st.subheader("Distribusi Anggota Cluster")
             cluster_counts = kmeans_data['Cluster_Label'].value_counts()
-            
-            # GRAFIK 21: Pie Chart
             fig_pie = px.pie(
                 values=cluster_counts.values,
                 names=cluster_counts.index,
@@ -1270,7 +1266,7 @@ elif menu == "🧩 K-Means Clustering":
             )
             fig_pie.update_traces(textposition='inside', textinfo='percent+label')
             fig_pie.update_layout(
-                height=200,
+                height=350,
                 font=dict(color="#f8fafc"),
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
@@ -1278,8 +1274,9 @@ elif menu == "🧩 K-Means Clustering":
                 showlegend=False
             )
             st.plotly_chart(fig_pie, use_container_width=True, config=NO_ZOOM)
-            
-            # GRAFIK 22: Bar Chart
+        
+        with col_dist2:
+            st.subheader("Jumlah Wilayah per Cluster")
             fig_bar_dist = px.bar(
                 x=cluster_counts.index,
                 y=cluster_counts.values,
@@ -1292,7 +1289,7 @@ elif menu == "🧩 K-Means Clustering":
                 }
             )
             fig_bar_dist.update_layout(
-                height=200,
+                height=350,
                 font=dict(color="#f8fafc"),
                 xaxis=dict(gridcolor="#334155", title="Cluster", fixedrange=True),
                 yaxis=dict(gridcolor="#334155", title="Jumlah Wilayah", fixedrange=True),
@@ -1352,7 +1349,6 @@ elif menu == "🧩 K-Means Clustering":
                 x=0.5
             )
         )
-        
         # Tambahkan centroid
         centroids_pca = pca.transform(kmeans_model.cluster_centers_)
         fig_pca.add_trace(go.Scatter(
@@ -1367,13 +1363,11 @@ elif menu == "🧩 K-Means Clustering":
             ),
             name='Centroid'
         ))
-        
         st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
         
         # GRAFIK 24: PCA 2D dengan Label Kota
         st.subheader("PCA 2D dengan Label Kota (Top 5 per Cluster)")
         
-        # Ambil 5 kota dengan Jumlah tertinggi dari setiap cluster
         top_cities = []
         for cluster_id in kmeans_data['Cluster'].unique():
             cluster_cities = kmeans_data[kmeans_data['Cluster'] == cluster_id].nlargest(5, 'Jumlah')
@@ -1393,9 +1387,8 @@ elif menu == "🧩 K-Means Clustering":
         )
         fig_pca_label.update_traces(marker=dict(size=8, opacity=0.5))
         
-        # Tambahkan label kota
         for idx, row in top_cities_df.iterrows():
-            kota = row['Nama_Kota'] if 'Nama_Kota' in row else row['Kota/Kab']
+            kota = row['Kota/Kab']
             pca_row = df_pca[df_pca['Kota/Kab'] == kota]
             if len(pca_row) > 0:
                 fig_pca_label.add_annotation(
@@ -1406,7 +1399,6 @@ elif menu == "🧩 K-Means Clustering":
                     showarrow=False,
                     yshift=5
                 )
-        
         fig_pca_label.update_layout(
             height=400,
             font=dict(color="#f8fafc"),
@@ -1430,7 +1422,6 @@ elif menu == "🧩 K-Means Clustering":
                 x=0.5
             )
         )
-        
         st.plotly_chart(fig_pca_label, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
@@ -1445,7 +1436,6 @@ elif menu == "🧩 K-Means Clustering":
         'Jumlah': 'mean'
     }).rename(columns={'Kode Kota/Kab': 'Jumlah_Wilayah'})
     
-    # Proporsi dominan
     proporsi_dominan_map = {}
     for cluster_id in cluster_analysis.index:
         label = cluster_names[cluster_id]
@@ -1678,7 +1668,6 @@ elif menu == "🌲 Random Forest Model":
                 plot_bgcolor='rgba(0,0,0,0)',
                 showlegend=False
             )
-            # Tambahkan garis rata-rata
             fig_bar_acc.add_hline(
                 y=mean_acc,
                 line_dash="dash",
@@ -1707,7 +1696,6 @@ elif menu == "🌲 Random Forest Model":
                 plot_bgcolor='rgba(0,0,0,0)',
                 showlegend=False
             )
-            # Tambahkan garis rata-rata
             fig_line_acc.add_hline(
                 y=mean_acc,
                 line_dash="dash",
@@ -1715,7 +1703,6 @@ elif menu == "🌲 Random Forest Model":
                 annotation_text=f"Rata-rata: {mean_acc:.3f}",
                 annotation_position="bottom right"
             )
-            # Tambahkan nilai di atas titik
             for fold, acc in zip(fold_numbers, fold_acc_values):
                 fig_line_acc.add_annotation(
                     x=fold, y=acc,
@@ -1724,7 +1711,6 @@ elif menu == "🌲 Random Forest Model":
                     font=dict(size=9, color="#f8fafc"),
                     yshift=10
                 )
-            # Tambahkan area ±1 std
             fig_line_acc.add_hrect(
                 y0=max(0, mean_acc - std_acc),
                 y1=min(1, mean_acc + std_acc),
