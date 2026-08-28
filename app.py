@@ -512,6 +512,7 @@ def load_and_prep_data():
         'fitur_kmeans': fitur_kmeans,
         'tahun_test': tahun_test,
         'tahun_train': tahun_train,
+        'tahun_validasi': tahun_validasi,
         'Q1_final': Q1_final,
         'Q3_final': Q3_final,
         'y_test_final': y_test_final,
@@ -538,6 +539,9 @@ def load_and_prep_data():
         'silhouette_scores': silhouette_scores,
         'calinski_scores': calinski_scores,
         'davies_scores': davies_scores,
+        'best_k_sil': best_k_sil,
+        'best_k_cal': best_k_cal,
+        'best_k_dav': best_k_dav,
         'fold_accuracies': fold_accuracies,
         'mean_acc': mean_acc,
         'std_acc': std_acc,
@@ -567,6 +571,8 @@ le_status = results['le_status']
 fitur_rf = results['fitur_rf']
 fitur_kmeans = results['fitur_kmeans']
 tahun_test = results['tahun_test']
+tahun_train = results['tahun_train']
+tahun_validasi = results['tahun_validasi']
 Q1_final = results['Q1_final']
 Q3_final = results['Q3_final']
 accuracy_final = results['accuracy_final']
@@ -591,6 +597,9 @@ inertia_scores = results['inertia_scores']
 silhouette_scores = results['silhouette_scores']
 calinski_scores = results['calinski_scores']
 davies_scores = results['davies_scores']
+best_k_sil = results['best_k_sil']
+best_k_cal = results['best_k_cal']
+best_k_dav = results['best_k_dav']
 fold_accuracies = results['fold_accuracies']
 mean_acc = results['mean_acc']
 std_acc = results['std_acc']
@@ -647,6 +656,7 @@ with st.sidebar:
 NO_ZOOM = {'displayModeBar': False, 'scrollZoom': False}
 
 # =========================================================
+# =========================================================
 # HALAMAN 1: OVERVIEW DASHBOARD
 # =========================================================
 if menu == "🏠 Overview Dashboard":
@@ -673,48 +683,107 @@ if menu == "🏠 Overview Dashboard":
         st.markdown(f"<div class='metric-box'><div class='metric-label'>TOTAL KASUS</div><div class='metric-num'>{total_cases:,}</div></div>", unsafe_allow_html=True)
 
     st.write("")
-    col_chart1, col_chart2 = st.columns([1.2, 1], gap="large")
-
-    # GRAFIK 1: Tren Kasus Putus Sekolah Berdasarkan Tahun
-    with col_chart1:
-        st.subheader("Tren Kasus Putus Sekolah Berdasarkan Tahun")
-        trend_df = df.groupby("Periode", as_index=False)["Jumlah"].sum()
-        fig_trend = px.line(trend_df, x="Periode", y="Jumlah", markers=True)
-        fig_trend.update_traces(line_color=COLORS['primary'], line_width=3, marker_size=10)
-        fig_trend.update_layout(
-            height=380, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", dtick=1, fixedrange=True),
-            yaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=10, r=10, t=10, b=10)
+    
+    # =========================================================
+    # BAGIAN 2: DISTRIBUSI PER TAHUN (Fig 2.1)
+    # =========================================================
+    st.subheader("Distribusi Data per Tahun")
+    
+    tahun_dist = df['Periode'].value_counts().sort_index()
+    
+    col_tahun1, col_tahun2 = st.columns(2)
+    
+    # GRAFIK 1: Bar chart per Tahun
+    with col_tahun1:
+        fig_bar_tahun = px.bar(
+            x=tahun_dist.index.astype(str), 
+            y=tahun_dist.values,
+            text=tahun_dist.values,
+            color_discrete_sequence=[COLORS['primary']]
         )
-        for idx, row in trend_df.iterrows():
-            fig_trend.add_annotation(
-                x=row['Periode'], y=row['Jumlah'],
-                text=f"{int(row['Jumlah']):,}",
-                showarrow=False,
-                font=dict(size=10, color="#f8fafc"),
-                yshift=10
-            )
-        st.plotly_chart(fig_trend, use_container_width=True, config=NO_ZOOM)
-
-    # GRAFIK 2: Top 10 Wilayah Kasus Tertinggi
-    with col_chart2:
-        st.subheader("Top 10 Wilayah Kasus Tertinggi")
-        top10_df = df.groupby("Wilayah", as_index=False)["Jumlah"].sum().sort_values("Jumlah", ascending=False).head(10)
-        fig_top = px.bar(top10_df, x="Jumlah", y="Wilayah", orientation="h", text_auto=",d")
-        fig_top.update_traces(marker_color=COLORS['primary'])
-        fig_top.update_layout(
-            height=380, font=dict(color="#f8fafc"),
-            yaxis=dict(autorange="reversed", gridcolor="#334155", title=None, fixedrange=True),
-            xaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
+        fig_bar_tahun.update_traces(textposition='outside', marker_color=COLORS['primary'])
+        fig_bar_tahun.update_layout(
+            title="Jumlah Data per Tahun",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Tahun", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Jumlah Data", fixedrange=True),
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=10, r=10, t=10, b=10)
+            showlegend=False
         )
-        st.plotly_chart(fig_top, use_container_width=True, config=NO_ZOOM)
+        st.plotly_chart(fig_bar_tahun, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 2: Pie chart per Tahun
+    with col_tahun2:
+        fig_pie_tahun = px.pie(
+            values=tahun_dist.values,
+            names=tahun_dist.index.astype(str),
+            hole=0.3,
+            color_discrete_sequence=px.colors.sequential.Viridis_r
+        )
+        fig_pie_tahun.update_traces(textposition='inside', textinfo='percent+label')
+        fig_pie_tahun.update_layout(
+            title="Persentase Data per Tahun",
+            height=350,
+            font=dict(color="#f8fafc"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_pie_tahun, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # BAGIAN 2: DISTRIBUSI STATUS SEKOLAH (Fig 2.2)
+    # =========================================================
+    st.subheader("Distribusi Status Sekolah")
+    
+    status_dist = df['Status Sekolah'].value_counts()
+    
+    col_status1, col_status2 = st.columns(2)
+    
+    # GRAFIK 3: Bar chart Status Sekolah
+    with col_status1:
+        fig_bar_status = px.bar(
+            x=status_dist.index,
+            y=status_dist.values,
+            text=status_dist.values,
+            color=status_dist.index,
+            color_discrete_sequence=[COLORS['primary'], COLORS['secondary']]
+        )
+        fig_bar_status.update_traces(textposition='outside')
+        fig_bar_status.update_layout(
+            title="Jumlah Data per Status Sekolah",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Status Sekolah", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Jumlah Data", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_bar_status, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 4: Pie chart Status Sekolah
+    with col_status2:
+        fig_pie_status = px.pie(
+            values=status_dist.values,
+            names=status_dist.index,
+            hole=0.3,
+            color=status_dist.index,
+            color_discrete_sequence=[COLORS['primary'], COLORS['secondary']]
+        )
+        fig_pie_status.update_traces(textposition='inside', textinfo='percent+label')
+        fig_pie_status.update_layout(
+            title="Persentase Status Sekolah",
+            height=350,
+            font=dict(color="#f8fafc"),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_pie_status, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
-# HALAMAN 2: EXPLORATORY ANALYSIS
+# HALAMAN 2: EXPLORATORY ANALYSIS (BAGIAN 4 NOTEBOOK)
 # =========================================================
 elif menu == "📊 Exploratory Analysis":
     st.title("Exploratory Data Analysis (EDA)")
@@ -736,59 +805,319 @@ elif menu == "📊 Exploratory Analysis":
 
     st.write("")
     
+    # =========================================================
+    # 4.1 DISTRIBUSI PUTUS SEKOLAH PER TINGKAT (Fig 4.1)
+    # =========================================================
+    st.subheader("Distribusi Putus Sekolah per Tingkat")
+    
+    df_melted = filtered_eda[LEVEL_COLS].melt(var_name='Tingkat', value_name='Jumlah')
+    df_melted['Tingkat'] = df_melted['Tingkat'].str.replace('Tingkat - ', 'Kelas ')
+    
     col_e1, col_e2 = st.columns(2, gap="large")
-
-    # GRAFIK 3: Distribusi Putus Sekolah per Kelas (I - VI)
+    
+    # GRAFIK 5: Boxplot per Tingkat
     with col_e1:
-        st.subheader("Distribusi Putus Sekolah per Kelas (I - VI)")
-        class_sums = filtered_eda[LEVEL_COLS].sum().reset_index()
-        class_sums.columns = ["Tingkat Kelas", "Jumlah Siswa"]
-        class_sums["Tingkat Kelas"] = class_sums["Tingkat Kelas"].str.replace("Tingkat - ", "Kelas ")
-        
-        fig_class = px.bar(class_sums, x="Tingkat Kelas", y="Jumlah Siswa", text_auto=",d", color_discrete_sequence=["#38bdf8"])
-        fig_class.update_layout(
-            height=360, font=dict(color="#f8fafc"),
+        fig_box = px.box(df_melted, x='Tingkat', y='Jumlah', color='Tingkat',
+                        color_discrete_sequence=px.colors.qualitative.Set2)
+        fig_box.update_layout(
+            title="Boxplot Putus Sekolah per Tingkat",
+            height=360,
+            font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
+            yaxis=dict(gridcolor="#334155", title="Jumlah Siswa", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10)
         )
-        st.plotly_chart(fig_class, use_container_width=True, config=NO_ZOOM)
-
-    # GRAFIK 4: Perbandingan Status Sekolah (Negeri vs Swasta)
+        st.plotly_chart(fig_box, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 6: Total per Tingkat (Bar chart)
     with col_e2:
-        st.subheader("Perbandingan Status Sekolah (Negeri vs Swasta)")
-        status_df = filtered_eda.groupby("Status Sekolah", as_index=False)["Jumlah"].sum()
-        fig_status = px.pie(status_df, names="Status Sekolah", values="Jumlah", hole=0.4, color_discrete_sequence=["#38bdf8", "#818cf8"])
-        fig_status.update_layout(
-            height=360, font=dict(color="#f8fafc"),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10)
+        total_per_tingkat = filtered_eda[LEVEL_COLS].sum()
+        total_per_tingkat.index = total_per_tingkat.index.str.replace('Tingkat - ', 'Kelas ')
+        fig_bar_tingkat = px.bar(
+            x=total_per_tingkat.index, 
+            y=total_per_tingkat.values,
+            text_auto=",d",
+            color_discrete_sequence=px.colors.sequential.Viridis
         )
-        st.plotly_chart(fig_status, use_container_width=True, config=NO_ZOOM)
+        fig_bar_tingkat.update_layout(
+            title="Total Putus Sekolah per Tingkat",
+            height=360,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Tingkat Kelas", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Total Siswa", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10)
+        )
+        st.plotly_chart(fig_bar_tingkat, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
     
-    # GRAFIK 5: Heatmap Korelasi Fitur
-    st.subheader("Heatmap Korelasi Fitur")
-    corr_matrix_filtered = filtered_eda[LEVEL_COLS + ["Jumlah"]].corr()
-    fig_corr = px.imshow(
-        corr_matrix_filtered, text_auto=".2f", aspect="auto",
-        color_continuous_scale="Blues"
+    # Statistik Deskriptif (sama notebook)
+    st.subheader("Statistik Deskriptif per Tingkat Kelas")
+    st.dataframe(tingkat_stats.round(2).style.format("{:,.2f}"), use_container_width=True)
+    
+    st.markdown("---")
+    
+    col_violin, col_heat = st.columns(2, gap="large")
+    
+    # GRAFIK 7: Violin Plot
+    with col_violin:
+        st.subheader("Violin Plot Putus Sekolah per Tingkat")
+        fig_violin = px.violin(df_melted, x='Tingkat', y='Jumlah', color='Tingkat',
+                              box=True, points=False,
+                              color_discrete_sequence=px.colors.qualitative.Set3)
+        fig_violin.update_layout(
+            height=360,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Jumlah Siswa", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False,
+            margin=dict(l=10, r=10, t=10, b=10)
+        )
+        st.plotly_chart(fig_violin, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 8: Heatmap Korelasi Antar Tingkat
+    with col_heat:
+        st.subheader("Heatmap Korelasi Antar Tingkat")
+        corr_tingkat = filtered_eda[LEVEL_COLS].corr()
+        fig_corr_tingkat = px.imshow(
+            corr_tingkat, 
+            text_auto=".2f", 
+            aspect="auto",
+            color_continuous_scale="coolwarm"
+        )
+        fig_corr_tingkat.update_layout(
+            height=360,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_corr_tingkat, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 4.2 ANALISIS PER PROVINSI (Fig 4.2)
+    # =========================================================
+    st.subheader("Analisis Per Provinsi")
+    
+    total_per_provinsi_filtered = filtered_eda.groupby('Wilayah')['Jumlah'].sum().sort_values(ascending=False)
+    
+    col_prov1, col_prov2 = st.columns(2, gap="large")
+    
+    # GRAFIK 9: Top 10 Provinsi Tertinggi
+    with col_prov1:
+        top10_prov = total_per_provinsi_filtered.head(10)
+        colors_bar = px.colors.sequential.Reds_r
+        fig_top10 = px.bar(
+            x=top10_prov.values,
+            y=top10_prov.index,
+            orientation='h',
+            text_auto=",d",
+            color_discrete_sequence=px.colors.sequential.Reds_r
+        )
+        fig_top10.update_layout(
+            title="10 Provinsi dengan Putus Sekolah Tertinggi",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", autorange="reversed", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_top10, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 10: Bottom 10 Provinsi Terendah
+    with col_prov2:
+        bottom10_prov = total_per_provinsi_filtered.tail(10)
+        fig_bottom10 = px.bar(
+            x=bottom10_prov.values,
+            y=bottom10_prov.index,
+            orientation='h',
+            text_auto=",d",
+            color_discrete_sequence=px.colors.sequential.Greens_r
+        )
+        fig_bottom10.update_layout(
+            title="10 Provinsi dengan Putus Sekolah Terendah",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", autorange="reversed", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_bottom10, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 4.3 TREN PUTUS SEKOLAH PER TAHUN (Fig 4.3)
+    # =========================================================
+    st.subheader("Tren Putus Sekolah per Tahun")
+    
+    total_per_tahun_filtered = filtered_eda.groupby('Periode')['Jumlah'].sum()
+    
+    col_tren1, col_tren2 = st.columns(2, gap="large")
+    
+    # GRAFIK 11: Line Chart
+    with col_tren1:
+        fig_line = px.line(
+            x=total_per_tahun_filtered.index,
+            y=total_per_tahun_filtered.values,
+            markers=True,
+            color_discrete_sequence=[COLORS['primary']]
+        )
+        fig_line.update_traces(line_width=3, marker_size=10)
+        fig_line.update_layout(
+            title="Tren Putus Sekolah",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Tahun", dtick=1, fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        # Tambahkan nilai di atas titik
+        for idx, (tahun, val) in enumerate(total_per_tahun_filtered.items()):
+            fig_line.add_annotation(
+                x=tahun, y=val,
+                text=f"{int(val):,}",
+                showarrow=False,
+                font=dict(size=10, color="#f8fafc"),
+                yshift=10
+            )
+        st.plotly_chart(fig_line, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 12: Bar Chart
+    with col_tren2:
+        fig_bar_tren = px.bar(
+            x=total_per_tahun_filtered.index.astype(str),
+            y=total_per_tahun_filtered.values,
+            text_auto=",d",
+            color_discrete_sequence=px.colors.sequential.Viridis
+        )
+        fig_bar_tren.update_layout(
+            title="Total Putus Sekolah per Tahun",
+            height=350,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", title="Tahun", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Total Putus Sekolah", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_bar_tren, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 4.4 STATUS SEKOLAH VS PUTUS SEKOLAH (Fig 4.4)
+    # =========================================================
+    st.subheader("Status Sekolah vs Putus Sekolah")
+    
+    status_analysis_filtered = filtered_eda.groupby('Status Sekolah')['Jumlah'].agg(['sum', 'mean', 'median', 'std', 'count'])
+    status_analysis_filtered.columns = ['Total', 'Rata-rata', 'Median', 'Std Dev', 'Jumlah Data']
+    
+    col_stat1, col_stat2, col_stat3 = st.columns(3, gap="large")
+    
+    # GRAFIK 13: Total per Status
+    with col_stat1:
+        fig_total_status = px.bar(
+            x=status_analysis_filtered.index,
+            y=status_analysis_filtered['Total'],
+            text_auto=",d",
+            color=status_analysis_filtered.index,
+            color_discrete_sequence=[COLORS['primary'], COLORS['secondary']]
+        )
+        fig_total_status.update_layout(
+            title="Total Putus Sekolah per Status",
+            height=300,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Total", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_total_status, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 14: Rata-rata per Status
+    with col_stat2:
+        fig_mean_status = px.bar(
+            x=status_analysis_filtered.index,
+            y=status_analysis_filtered['Rata-rata'],
+            text_auto=".2f",
+            color=status_analysis_filtered.index,
+            color_discrete_sequence=[COLORS['info'], COLORS['secondary']]
+        )
+        fig_mean_status.update_layout(
+            title="Rata-rata Putus Sekolah per Status",
+            height=300,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Rata-rata", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_mean_status, use_container_width=True, config=NO_ZOOM)
+    
+    # GRAFIK 15: Boxplot per Status
+    with col_stat3:
+        fig_box_status = px.box(
+            filtered_eda,
+            x='Status Sekolah',
+            y='Jumlah',
+            color='Status Sekolah',
+            color_discrete_sequence=[COLORS['primary'], COLORS['secondary']]
+        )
+        fig_box_status.update_layout(
+            title="Distribusi Putus Sekolah per Status",
+            height=300,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Jumlah", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_box_status, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 4.5 HEATMAP KORELASI (Fig 4.5)
+    # =========================================================
+    st.subheader("Heatmap Korelasi Lengkap")
+    
+    # GRAFIK 16: Heatmap Korelasi Lengkap
+    corr_matrix_filtered = filtered_eda[LEVEL_COLS + ['Jumlah']].corr()
+    fig_corr_full = px.imshow(
+        corr_matrix_filtered,
+        text_auto=".2f",
+        aspect="auto",
+        color_continuous_scale="coolwarm"
     )
-    fig_corr.update_layout(
-        height=400, font=dict(color="#f8fafc"),
-        xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
+    fig_corr_full.update_layout(
+        height=400,
+        font=dict(color="#f8fafc"),
+        xaxis=dict(fixedrange=True),
+        yaxis=dict(fixedrange=True),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
     )
-    st.plotly_chart(fig_corr, use_container_width=True, config=NO_ZOOM)
+    st.plotly_chart(fig_corr_full, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
-# HALAMAN 3: K-MEANS CLUSTERING
+# HALAMAN 3: K-MEANS CLUSTERING (BAGIAN 5 NOTEBOOK)
 # =========================================================
 elif menu == "🧩 K-Means Clustering":
     st.title("K-Means Clustering Analysis")
     st.markdown("Pengelompokan tingkat kerawanan per Kabupaten/Kota berdasarkan rata-rata proporsi tingkat dan total kasus.")
     
-    # Metrik dari notebook
+    # =========================================================
+    # 5.2 METRIK EVALUASI
+    # =========================================================
     c_m1, c_m2, c_m3, c_m4 = st.columns(4)
     with c_m1:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>OPTIMAL K</div><div class='metric-num'>K = {optimal_k}</div><div class='metric-sub'>Rendah, Sedang, Tinggi</div></div>", unsafe_allow_html=True)
@@ -801,40 +1130,183 @@ elif menu == "🧩 K-Means Clustering":
 
     st.write("")
     
-    tab_c1, tab_c2 = st.tabs(["Elbow Method", "PCA 2D Visualizer"])
+    tab_c1, tab_c2 = st.tabs(["Metrik Evaluasi Cluster", "PCA 2D Visualizer"])
     
     with tab_c1:
-        col_el, col_dist = st.columns([1.2, 1], gap="large")
+        col_metrics, col_dist = st.columns([1.2, 1], gap="large")
         
-        # GRAFIK 6: Elbow Method (Inertia vs K)
-        with col_el:
-            st.subheader("Elbow Method (Inertia vs K)")
-            fig_elbow = px.line(x=list(K_range), y=inertia_scores, markers=True, labels={"x": "Jumlah Cluster (K)", "y": "Inertia"})
-            fig_elbow.update_traces(line_color="#38bdf8", marker_size=10)
-            fig_elbow.add_vline(x=optimal_k, line_dash="dash", line_color="#ef4444", annotation_text=f"K Optimal = {optimal_k}")
-            fig_elbow.update_layout(
-                height=350, font=dict(color="#f8fafc"),
-                xaxis=dict(gridcolor="#334155", fixedrange=True),
-                yaxis=dict(gridcolor="#334155", fixedrange=True),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        with col_metrics:
+            st.subheader("Metrik Evaluasi per k")
+            
+            # GRAFIK 17-20: 4 Metrik dalam 1 grafik
+            fig_metrics = go.Figure()
+            
+            # 17. Elbow Method (Inertia)
+            fig_metrics.add_trace(go.Scatter(
+                x=list(K_range), y=inertia_scores,
+                mode='lines+markers',
+                name='Inertia',
+                line=dict(color='#2E86AB', width=2),
+                marker=dict(size=8, color='#2E86AB')
+            ))
+            
+            # 18. Silhouette Score
+            fig_metrics.add_trace(go.Scatter(
+                x=list(K_range), y=silhouette_scores,
+                mode='lines+markers',
+                name='Silhouette',
+                line=dict(color='#E74C3C', width=2),
+                marker=dict(size=8, color='#E74C3C'),
+                yaxis='y2'
+            ))
+            
+            # 19. Calinski-Harabasz Score
+            fig_metrics.add_trace(go.Scatter(
+                x=list(K_range), y=calinski_scores,
+                mode='lines+markers',
+                name='Calinski',
+                line=dict(color='#2ECC71', width=2),
+                marker=dict(size=8, color='#2ECC71'),
+                yaxis='y3'
+            ))
+            
+            # 20. Davies-Bouldin Score
+            fig_metrics.add_trace(go.Scatter(
+                x=list(K_range), y=davies_scores,
+                mode='lines+markers',
+                name='Davies',
+                line=dict(color='#A23B72', width=2),
+                marker=dict(size=8, color='#A23B72'),
+                yaxis='y4'
+            ))
+            
+            fig_metrics.update_layout(
+                height=400,
+                font=dict(color="#f8fafc"),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(
+                    title="Jumlah Cluster (k)",
+                    gridcolor="#334155",
+                    dtick=1,
+                    fixedrange=True
+                ),
+                yaxis=dict(
+                    title="Inertia",
+                    gridcolor="#334155",
+                    fixedrange=True,
+                    showgrid=False
+                ),
+                yaxis2=dict(
+                    title="Silhouette",
+                    gridcolor="#334155",
+                    fixedrange=True,
+                    overlaying='y',
+                    side='right',
+                    showgrid=False
+                ),
+                yaxis3=dict(
+                    title="Calinski",
+                    gridcolor="#334155",
+                    fixedrange=True,
+                    overlaying='y',
+                    side='right',
+                    showgrid=False,
+                    position=0.85
+                ),
+                yaxis4=dict(
+                    title="Davies",
+                    gridcolor="#334155",
+                    fixedrange=True,
+                    overlaying='y',
+                    side='right',
+                    showgrid=False,
+                    position=0.95
+                ),
+                margin=dict(l=10, r=10, t=10, b=10)
             )
-            st.plotly_chart(fig_elbow, use_container_width=True, config=NO_ZOOM)
+            
+            # Tambahkan vertical line untuk k optimal
+            fig_metrics.add_vline(
+                x=optimal_k,
+                line_dash="dash",
+                line_color="#F1C40F",
+                annotation_text=f"k={optimal_k}",
+                annotation_position="top"
+            )
+            
+            st.plotly_chart(fig_metrics, use_container_width=True, config=NO_ZOOM)
+            
+            # Tabel metrik
+            metrics_df = pd.DataFrame({
+                'k': list(K_range),
+                'Inertia': inertia_scores,
+                'Silhouette': silhouette_scores,
+                'Calinski': calinski_scores,
+                'Davies': davies_scores
+            })
+            st.dataframe(metrics_df.style.format({
+                'Inertia': '{:.2f}',
+                'Silhouette': '{:.4f}',
+                'Calinski': '{:.2f}',
+                'Davies': '{:.4f}'
+            }), use_container_width=True)
         
-        # GRAFIK 7: Distribusi Kluster Kabupaten/Kota
         with col_dist:
-            st.subheader("Distribusi Kluster Kabupaten/Kota")
-            dist_df = kmeans_data["Cluster_Label"].value_counts().reset_index()
-            dist_df.columns = ["Cluster", "Jumlah Kab/Kota"]
-            fig_dist = px.pie(dist_df, names="Cluster", values="Jumlah Kab/Kota", hole=0.4,
-                              color="Cluster", color_discrete_map={"Cluster 0 (Rendah)": "#22c55e", "Cluster 1 (Sedang)": "#eab308", "Cluster 2 (Tinggi)": "#ef4444"})
-            fig_dist.update_layout(
-                height=350, font=dict(color="#f8fafc"),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            st.subheader("Distribusi Anggota Cluster")
+            cluster_counts = kmeans_data['Cluster_Label'].value_counts()
+            
+            # GRAFIK 21: Pie Chart
+            fig_pie = px.pie(
+                values=cluster_counts.values,
+                names=cluster_counts.index,
+                hole=0.3,
+                color=cluster_counts.index,
+                color_discrete_map={
+                    "Cluster 0 (Rendah)": "#3498DB",
+                    "Cluster 1 (Sedang)": "#2ECC71",
+                    "Cluster 2 (Tinggi)": "#E74C3C"
+                }
             )
-            st.plotly_chart(fig_dist, use_container_width=True, config=NO_ZOOM)
-
+            fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+            fig_pie.update_layout(
+                height=200,
+                font=dict(color="#f8fafc"),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=10, r=10, t=10, b=10),
+                showlegend=False
+            )
+            st.plotly_chart(fig_pie, use_container_width=True, config=NO_ZOOM)
+            
+            # GRAFIK 22: Bar Chart
+            fig_bar_dist = px.bar(
+                x=cluster_counts.index,
+                y=cluster_counts.values,
+                text_auto=True,
+                color=cluster_counts.index,
+                color_discrete_map={
+                    "Cluster 0 (Rendah)": "#3498DB",
+                    "Cluster 1 (Sedang)": "#2ECC71",
+                    "Cluster 2 (Tinggi)": "#E74C3C"
+                }
+            )
+            fig_bar_dist.update_layout(
+                height=200,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", title="Cluster", fixedrange=True),
+                yaxis=dict(gridcolor="#334155", title="Jumlah Wilayah", fixedrange=True),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=10, r=10, t=10, b=10),
+                showlegend=False
+            )
+            st.plotly_chart(fig_bar_dist, use_container_width=True, config=NO_ZOOM)
+    
     with tab_c2:
-        # GRAFIK 8: Visualisasi Proyeksi 2D PCA
+        # =========================================================
+        # 5.6 VISUALISASI CLUSTER DENGAN PCA 2D (Fig 5.6)
+        # =========================================================
         st.subheader("Visualisasi Proyeksi 2D PCA")
         
         pca = PCA(n_components=2, random_state=42)
@@ -844,33 +1316,162 @@ elif menu == "🧩 K-Means Clustering":
         df_pca["PC1"] = pca_coords[:, 0]
         df_pca["PC2"] = pca_coords[:, 1]
         
+        # GRAFIK 23: PCA 2D Visualisasi
         fig_pca = px.scatter(
-            df_pca, x="PC1", y="PC2", color="Cluster_Label",
+            df_pca,
+            x="PC1", y="PC2",
+            color="Cluster_Label",
             hover_data=["Kota/Kab", "Jumlah"],
-            color_discrete_map={"Cluster 0 (Rendah)": "#22c55e", "Cluster 1 (Sedang)": "#eab308", "Cluster 2 (Tinggi)": "#ef4444"}
+            color_discrete_map={
+                "Cluster 0 (Rendah)": "#3498DB",
+                "Cluster 1 (Sedang)": "#2ECC71",
+                "Cluster 2 (Tinggi)": "#E74C3C"
+            }
         )
-        fig_pca.update_traces(marker=dict(size=9, opacity=0.8))
+        fig_pca.update_traces(marker=dict(size=10, opacity=0.7))
         fig_pca.update_layout(
-            height=420, font=dict(color="#f8fafc"),
-            xaxis=dict(gridcolor="#334155", fixedrange=True),
-            yaxis=dict(gridcolor="#334155", fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            height=400,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(
+                gridcolor="#334155",
+                title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}% varian)",
+                fixedrange=True
+            ),
+            yaxis=dict(
+                gridcolor="#334155",
+                title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}% varian)",
+                fixedrange=True
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            )
         )
+        
+        # Tambahkan centroid
+        centroids_pca = pca.transform(kmeans_model.cluster_centers_)
+        fig_pca.add_trace(go.Scatter(
+            x=centroids_pca[:, 0],
+            y=centroids_pca[:, 1],
+            mode='markers',
+            marker=dict(
+                symbol='x',
+                size=15,
+                color='red',
+                line=dict(width=2, color='black')
+            ),
+            name='Centroid'
+        ))
+        
         st.plotly_chart(fig_pca, use_container_width=True, config=NO_ZOOM)
+        
+        # GRAFIK 24: PCA 2D dengan Label Kota
+        st.subheader("PCA 2D dengan Label Kota (Top 5 per Cluster)")
+        
+        # Ambil 5 kota dengan Jumlah tertinggi dari setiap cluster
+        top_cities = []
+        for cluster_id in kmeans_data['Cluster'].unique():
+            cluster_cities = kmeans_data[kmeans_data['Cluster'] == cluster_id].nlargest(5, 'Jumlah')
+            top_cities.append(cluster_cities)
+        top_cities_df = pd.concat(top_cities)
+        
+        fig_pca_label = px.scatter(
+            df_pca,
+            x="PC1", y="PC2",
+            color="Cluster_Label",
+            hover_data=["Kota/Kab", "Jumlah"],
+            color_discrete_map={
+                "Cluster 0 (Rendah)": "#3498DB",
+                "Cluster 1 (Sedang)": "#2ECC71",
+                "Cluster 2 (Tinggi)": "#E74C3C"
+            }
+        )
+        fig_pca_label.update_traces(marker=dict(size=8, opacity=0.5))
+        
+        # Tambahkan label kota
+        for idx, row in top_cities_df.iterrows():
+            kota = row['Nama_Kota'] if 'Nama_Kota' in row else row['Kota/Kab']
+            pca_row = df_pca[df_pca['Kota/Kab'] == kota]
+            if len(pca_row) > 0:
+                fig_pca_label.add_annotation(
+                    x=pca_row['PC1'].values[0],
+                    y=pca_row['PC2'].values[0],
+                    text=kota,
+                    font=dict(size=8, color="#f8fafc"),
+                    showarrow=False,
+                    yshift=5
+                )
+        
+        fig_pca_label.update_layout(
+            height=400,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(
+                gridcolor="#334155",
+                title=f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}% varian)",
+                fixedrange=True
+            ),
+            yaxis=dict(
+                gridcolor="#334155",
+                title=f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}% varian)",
+                fixedrange=True
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            )
+        )
+        
+        st.plotly_chart(fig_pca_label, use_container_width=True, config=NO_ZOOM)
 
     st.markdown("---")
-    st.subheader("Rata-Rata Karakteristik Cluster")
-    cluster_profile = kmeans_data.groupby("Cluster_Label")[fitur_kmeans].mean().reindex(["Cluster 0 (Rendah)", "Cluster 1 (Sedang)", "Cluster 2 (Tinggi)"])
-    st.dataframe(cluster_profile.style.format("{:,.3f}"), use_container_width=True)
+    
+    # =========================================================
+    # 5.7 TABEL RINGKASAN K-MEANS
+    # =========================================================
+    st.subheader("Tabel Ringkasan Cluster")
+    
+    cluster_summary = kmeans_data.groupby('Cluster_Label').agg({
+        'Kode Kota/Kab': 'count',
+        'Jumlah': 'mean'
+    }).rename(columns={'Kode Kota/Kab': 'Jumlah_Wilayah'})
+    
+    # Proporsi dominan
+    proporsi_dominan_map = {}
+    for cluster_id in cluster_analysis.index:
+        label = cluster_names[cluster_id]
+        row = cluster_analysis.loc[cluster_id]
+        prop_cols = ['Proporsi_I', 'Proporsi_II', 'Proporsi_III', 'Proporsi_IV', 'Proporsi_V', 'Proporsi_VI']
+        max_prop_idx = np.argmax(row[prop_cols].values)
+        max_tingkat = ['I', 'II', 'III', 'IV', 'V', 'VI'][max_prop_idx]
+        proporsi_dominan_map[label] = f"Tingkat {max_tingkat} ({row[prop_cols[max_prop_idx]]:.3f})"
+    
+    cluster_summary['Proporsi_Dominan'] = cluster_summary.index.map(proporsi_dominan_map)
+    cluster_summary['Persentase'] = (cluster_summary['Jumlah_Wilayah'] / len(kmeans_data) * 100).round(1)
+    st.dataframe(cluster_summary, use_container_width=True)
+    
+    st.subheader("Karakteristik Rata-rata per Cluster")
+    st.dataframe(cluster_analysis.reindex(cluster_names.values()).style.format("{:.3f}"), use_container_width=True)
 
 # =========================================================
-# HALAMAN 4: RANDOM FOREST MODEL
+# HALAMAN 4: RANDOM FOREST MODEL (BAGIAN 6 NOTEBOOK)
 # =========================================================
 elif menu == "🌲 Random Forest Model":
     st.title("Random Forest Classification")
     st.markdown(f"Evaluasi performa model Supervised Learning (Evaluasi Pada Data Uji Tahun {tahun_test}).")
     
-    # Metrik dari notebook
+    # =========================================================
+    # 6.9 METRIK EVALUASI
+    # =========================================================
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.markdown(f"<div class='metric-box'><div class='metric-label'>ACCURACY</div><div class='metric-num'>{accuracy_final*100:.2f}%</div></div>", unsafe_allow_html=True)
@@ -886,46 +1487,253 @@ elif menu == "🌲 Random Forest Model":
 
     st.write("")
     
+    # =========================================================
+    # 6.10 CONFUSION MATRIX (Fig 6.10)
+    # =========================================================
     col_rf1, col_rf2 = st.columns([1, 1.2], gap="large")
     
-    # GRAFIK 9: Confusion Matrix (Data Uji 2024)
     with col_rf1:
         st.subheader(f"Confusion Matrix (Data Uji {tahun_test})")
         labels = ["Rendah", "Sedang", "Tinggi"]
+        
+        # GRAFIK 25: Confusion Matrix
         fig_cm = px.imshow(
-            cm_final, x=labels, y=labels, text_auto=True,
-            color_continuous_scale="Blues", labels=dict(x="Prediksi Model", y="Kelas Aktual")
+            cm_final,
+            x=labels, y=labels,
+            text_auto=True,
+            color_continuous_scale="Blues",
+            labels=dict(x="Prediksi", y="Aktual")
         )
         fig_cm.update_layout(
-            height=360, font=dict(color="#f8fafc"),
-            xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            height=360,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_cm, use_container_width=True, config=NO_ZOOM)
-
-    # GRAFIK 10: Feature Importance Random Forest
-    with col_rf2:
-        st.subheader("Feature Importance Random Forest")
-        fi_df = feature_importance.copy()
-        fi_df = fi_df.sort_values(by="Importance", ascending=True)
         
+        # GRAFIK 26: Normalized Confusion Matrix
+        st.subheader("Normalized Confusion Matrix (%)")
+        cm_norm = cm_final.astype('float') / cm_final.sum(axis=1)[:, np.newaxis]
+        fig_cm_norm = px.imshow(
+            cm_norm,
+            x=labels, y=labels,
+            text_auto=".2%",
+            color_continuous_scale="Blues",
+            labels=dict(x="Prediksi", y="Aktual")
+        )
+        fig_cm_norm.update_layout(
+            height=360,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_cm_norm, use_container_width=True, config=NO_ZOOM)
+    
+    with col_rf2:
+        # =========================================================
+        # 6.11 FEATURE IMPORTANCE (Fig 6.11)
+        # =========================================================
+        st.subheader("Feature Importance Random Forest")
+        fi_df = feature_importance.sort_values(by="Importance", ascending=True)
+        
+        # GRAFIK 27: Feature Importance
         fig_fi = px.bar(
-            fi_df, x="Importance", y="Fitur", orientation="h", 
-            text_auto=".4f", color="Importance", color_continuous_scale="Viridis"
+            fi_df,
+            x="Importance", y="Fitur",
+            orientation="h",
+            text_auto=".4f",
+            color="Importance",
+            color_continuous_scale="viridis"
         )
         fig_fi.update_layout(
-            height=360, font=dict(color="#f8fafc"),
+            height=360,
+            font=dict(color="#f8fafc"),
             xaxis=dict(gridcolor="#334155", fixedrange=True),
             yaxis=dict(
                 autorange="reversed",
-                gridcolor="#334155", 
-                title="Fitur", 
+                gridcolor="#334155",
+                title="Fitur",
                 fixedrange=True
             ),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
             coloraxis_showscale=False
         )
         st.plotly_chart(fig_fi, use_container_width=True, config=NO_ZOOM)
+        
+        # GRAFIK 28: Top 5 Feature Importance
+        st.subheader("Top 5 Feature Importance")
+        top5_df = feature_importance.head(5).sort_values(by="Importance", ascending=False)
+        fig_top5 = px.bar(
+            top5_df,
+            x="Fitur", y="Importance",
+            text_auto=".4f",
+            color="Importance",
+            color_continuous_scale="plasma"
+        )
+        fig_top5.update_layout(
+            height=200,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", fixedrange=True),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            coloraxis_showscale=False
+        )
+        st.plotly_chart(fig_top5, use_container_width=True, config=NO_ZOOM)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 6.17 TABEL METRIK PER KELAS
+    # =========================================================
+    col_rf3, col_rf4 = st.columns(2, gap="large")
+    
+    with col_rf3:
+        st.subheader("Classification Report")
+        report_data = []
+        for i, class_name in enumerate(["Rendah", "Sedang", "Tinggi"]):
+            row = per_class_df[per_class_df['Kelas'] == class_name].iloc[0]
+            report_data.append({
+                'Kelas': class_name,
+                'Precision': f"{row['Precision']*100:.2f}%",
+                'Recall': f"{row['Recall']*100:.2f}%",
+                'F1-Score': f"{row['F1-Score']*100:.2f}%",
+                'Support': int(row['Support'])
+            })
+        report_data.append({
+            'Kelas': 'Macro Avg',
+            'Precision': f"{macro_precision*100:.2f}%",
+            'Recall': f"{macro_recall*100:.2f}%",
+            'F1-Score': f"{macro_f1*100:.2f}%",
+            'Support': '-'
+        })
+        st.dataframe(pd.DataFrame(report_data), use_container_width=True)
+    
+    with col_rf4:
+        st.subheader("Perbandingan Weighted vs Macro")
+        comparison_data = {
+            'Metrik': ['Precision', 'Recall', 'F1-Score'],
+            'Weighted': [f"{precision_final*100:.2f}%", f"{recall_final*100:.2f}%", f"{f1_final*100:.2f}%"],
+            'Macro': [f"{macro_precision*100:.2f}%", f"{macro_recall*100:.2f}%", f"{macro_f1*100:.2f}%"]
+        }
+        st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+
+    st.markdown("---")
+    
+    # =========================================================
+    # 6.15 PERBANDINGAN RF VS BASELINE
+    # =========================================================
+    st.subheader("Perbandingan Random Forest vs Baseline")
+    comparison_df = pd.DataFrame({
+        'Model': ['Baseline (Most Frequent)', 'Random Forest'],
+        'Accuracy': [f"{baseline_accuracy*100:.2f}%", f"{accuracy_final*100:.2f}%"],
+        'Precision (Weighted)': ['-', f"{precision_final*100:.2f}%"],
+        'Recall (Weighted)': ['-', f"{recall_final*100:.2f}%"],
+        'F1-Score (Weighted)': ['-', f"{f1_final*100:.2f}%"],
+        'Peningkatan': ['-', f"{(accuracy_final - baseline_accuracy)*100:.2f}%"]
+    })
+    st.dataframe(comparison_df, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # =========================================================
+    # 6.18 GRAFIK ACCURACY PER FOLD (Fig 6.18)
+    # =========================================================
+    if len(fold_accuracies) > 0:
+        st.subheader("Akurasi per Fold Validasi")
+        
+        fold_numbers = [d['fold'] for d in best_fold_details]
+        fold_acc_values = [d['accuracy'] for d in best_fold_details]
+        fold_labels = [f"{d['train_years']} → {d['val_year']}" for d in best_fold_details]
+        
+        col_acc1, col_acc2 = st.columns(2, gap="large")
+        
+        # GRAFIK 29: Bar Chart Accuracy per Fold
+        with col_acc1:
+            fig_bar_acc = px.bar(
+                x=fold_labels,
+                y=fold_acc_values,
+                text=fold_acc_values,
+                color_discrete_sequence=px.colors.sequential.Viridis
+            )
+            fig_bar_acc.update_traces(textposition='outside', texttemplate='%{text:.3f}')
+            fig_bar_acc.update_layout(
+                title="Akurasi per Fold Validasi",
+                height=350,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(
+                    gridcolor="#334155",
+                    title="Fold (Train → Validate)",
+                    fixedrange=True,
+                    tickangle=30
+                ),
+                yaxis=dict(gridcolor="#334155", title="Accuracy", fixedrange=True, range=[0, 1]),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False
+            )
+            # Tambahkan garis rata-rata
+            fig_bar_acc.add_hline(
+                y=mean_acc,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Rata-rata: {mean_acc:.3f}",
+                annotation_position="bottom right"
+            )
+            st.plotly_chart(fig_bar_acc, use_container_width=True, config=NO_ZOOM)
+        
+        # GRAFIK 30: Line Chart Accuracy per Fold
+        with col_acc2:
+            fig_line_acc = px.line(
+                x=fold_numbers,
+                y=fold_acc_values,
+                markers=True,
+                color_discrete_sequence=[COLORS['primary']]
+            )
+            fig_line_acc.update_traces(line_width=2, marker_size=8)
+            fig_line_acc.update_layout(
+                title="Tren Akurasi per Fold",
+                height=350,
+                font=dict(color="#f8fafc"),
+                xaxis=dict(gridcolor="#334155", title="Fold", dtick=1, fixedrange=True),
+                yaxis=dict(gridcolor="#334155", title="Accuracy", fixedrange=True, range=[0, 1]),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False
+            )
+            # Tambahkan garis rata-rata
+            fig_line_acc.add_hline(
+                y=mean_acc,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Rata-rata: {mean_acc:.3f}",
+                annotation_position="bottom right"
+            )
+            # Tambahkan nilai di atas titik
+            for fold, acc in zip(fold_numbers, fold_acc_values):
+                fig_line_acc.add_annotation(
+                    x=fold, y=acc,
+                    text=f"{acc:.3f}",
+                    showarrow=False,
+                    font=dict(size=9, color="#f8fafc"),
+                    yshift=10
+                )
+            # Tambahkan area ±1 std
+            fig_line_acc.add_hrect(
+                y0=max(0, mean_acc - std_acc),
+                y1=min(1, mean_acc + std_acc),
+                fillcolor="rgba(46, 134, 171, 0.2)",
+                line_width=0,
+                annotation_text=f"±1 Std: {std_acc:.3f}",
+                annotation_position="top left"
+            )
+            st.plotly_chart(fig_line_acc, use_container_width=True, config=NO_ZOOM)
 
 # =========================================================
 # HALAMAN 5: PREDICTIVE SIMULATION
@@ -1010,3 +1818,26 @@ elif menu == "🔮 Predictive Simulation":
             """,
             unsafe_allow_html=True
         )
+        
+        st.subheader("Detail Probabilitas per Kategori")
+        proba_df = pd.DataFrame({
+            'Kategori': ['Rendah', 'Sedang', 'Tinggi'],
+            'Probabilitas': pred_proba * 100
+        })
+        fig_proba = px.bar(
+            proba_df,
+            x='Kategori', y='Probabilitas',
+            text_auto=".1f",
+            color='Kategori',
+            color_discrete_map={'Rendah': '#22c55e', 'Sedang': '#eab308', 'Tinggi': '#ef4444'}
+        )
+        fig_proba.update_layout(
+            height=300,
+            font=dict(color="#f8fafc"),
+            xaxis=dict(gridcolor="#334155", fixedrange=True),
+            yaxis=dict(gridcolor="#334155", title="Probabilitas (%)", fixedrange=True, range=[0, 100]),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        st.plotly_chart(fig_proba, use_container_width=True, config=NO_ZOOM)
